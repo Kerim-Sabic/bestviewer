@@ -1,11 +1,20 @@
 "use client";
 
+import type {
+  AnnotationUid,
+  MeasurementToolName,
+  StackViewportController
+} from "@horalix/dicom-engine";
 import { Activity, BadgeInfo, Brain, ShieldCheck } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { DicomStackViewport } from "./dicom-stack-viewport";
+import { MeasurementPanel } from "./measurement-panel";
 import { StudyLoaderPanel } from "./study-loader-panel";
+import { ToolPalette } from "./tool-palette";
+import { useMeasurements } from "../hooks/use-measurements";
 import { DEFAULT_WINDOW_LEVEL, WINDOW_LEVEL_OPTIONS } from "../lib/defaults";
+import { toolForHotkeyCode } from "../lib/measurement-tools";
 import type { LoadedSeries, LoadStatus, WindowLevelSelection } from "../types";
 
 export function ReadingRoomShell() {
@@ -13,6 +22,66 @@ export function ReadingRoomShell() {
   const [loadStatus, setLoadStatus] = useState<LoadStatus>({ status: "idle" });
   const [windowLevel, setWindowLevel] =
     useState<WindowLevelSelection>(DEFAULT_WINDOW_LEVEL);
+  const [controller, setController] = useState<StackViewportController | null>(null);
+  const [activeTool, setActiveTool] = useState<MeasurementToolName | null>(null);
+
+  const measurements = useMeasurements(controller);
+
+  // Synchronize the UI's active-tool selection into the imperative Cornerstone
+  // tool group. Re-runs when the controller (re)mounts so the binding is
+  // re-applied to a fresh viewport.
+  useEffect(() => {
+    controller?.setActiveTool(activeTool);
+  }, [controller, activeTool]);
+
+  // Radiologists live on the keyboard: letters pick tools, Escape drops back
+  // to window/level. Codes (not keys) keep bindings stable across layouts.
+  useEffect(() => {
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) {
+        return;
+      }
+
+      if (isTypingElement(event.target)) {
+        return;
+      }
+
+      if (event.code === "Escape") {
+        setActiveTool(null);
+        return;
+      }
+
+      const tool = toolForHotkeyCode(event.code);
+
+      if (tool === undefined) {
+        return;
+      }
+
+      event.preventDefault();
+      setActiveTool((current) => (current === tool ? null : tool));
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  const handleControllerReady = useCallback(
+    (next: StackViewportController | null) => {
+      setController(next);
+    },
+    []
+  );
+
+  function handleSelectTool(tool: MeasurementToolName | null) {
+    setActiveTool(tool);
+  }
+
+  function handleRemoveMeasurement(uid: AnnotationUid) {
+    controller?.removeMeasurement(uid);
+  }
 
   return (
     <main className="reading-room">
@@ -33,7 +102,7 @@ export function ReadingRoomShell() {
           </span>
           <span>
             <Activity size={14} aria-hidden="true" />
-            Phase 1
+            Phase 2
           </span>
         </div>
       </header>
@@ -51,11 +120,18 @@ export function ReadingRoomShell() {
 
         <DicomStackViewport
           loadStatus={loadStatus}
+          onControllerReady={handleControllerReady}
           series={loadedSeries}
           windowLevel={windowLevel}
         />
 
         <aside className="right-rail">
+          <ToolPalette
+            activeTool={activeTool}
+            disabled={loadedSeries === null}
+            onSelect={handleSelectTool}
+          />
+
           <section className="viewer-panel" aria-labelledby="window-level-title">
             <div className="panel-heading">
               <span className="panel-icon" aria-hidden="true">
@@ -82,6 +158,11 @@ export function ReadingRoomShell() {
               ))}
             </div>
           </section>
+
+          <MeasurementPanel
+            measurements={measurements}
+            onRemove={handleRemoveMeasurement}
+          />
 
           <section className="viewer-panel study-summary" aria-labelledby="summary-title">
             <div className="panel-heading">
@@ -133,4 +214,17 @@ function formatFrameRate(frameRate: number | null): string {
   }
 
   return `${frameRate} fps`;
+}
+
+function isTypingElement(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  return (
+    target.tagName === "INPUT" ||
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "SELECT" ||
+    target.isContentEditable
+  );
 }

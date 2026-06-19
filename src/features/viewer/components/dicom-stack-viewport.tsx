@@ -15,6 +15,7 @@ import type {
 
 interface DicomStackViewportProps {
   readonly loadStatus: LoadStatus;
+  readonly onControllerReady?: (controller: StackViewportController | null) => void;
   readonly series: LoadedSeries | null;
   readonly windowLevel: WindowLevelSelection;
 }
@@ -33,6 +34,7 @@ type FrameNavigationResult = Awaited<
 
 export function DicomStackViewport({
   loadStatus,
+  onControllerReady,
   series,
   windowLevel
 }: DicomStackViewportProps) {
@@ -42,6 +44,7 @@ export function DicomStackViewport({
   const navigationInFlightRef = useRef(false);
   const playbackDirectionRef = useRef<CineDirection>(1);
   const windowLevelRef = useRef(windowLevel);
+  const onControllerReadyRef = useRef(onControllerReady);
   const [controllerVersion, setControllerVersion] = useState(0);
   const [frameState, setFrameState] = useState<StackFrameState>(
     createEmptyFrameState
@@ -63,6 +66,10 @@ export function DicomStackViewport({
     windowLevelRef.current = windowLevel;
     controllerRef.current?.setWindowLevel(windowLevel.preset);
   }, [windowLevel]);
+
+  useEffect(() => {
+    onControllerReadyRef.current = onControllerReady;
+  }, [onControllerReady]);
 
   useEffect(() => {
     playbackDirectionRef.current = 1;
@@ -115,6 +122,7 @@ export function DicomStackViewport({
       unsubscribeFrameChange = result.value.subscribeToFrameChange(setFrameState);
       setFrameState(result.value.getFrameState());
       setControllerVersion((version) => version + 1);
+      onControllerReadyRef.current?.(result.value);
       setViewportStatus({ status: "ready" });
     }
 
@@ -125,6 +133,7 @@ export function DicomStackViewport({
       unsubscribeFrameChange?.();
       controllerRef.current?.destroy();
       controllerRef.current = null;
+      onControllerReadyRef.current?.(null);
     };
   }, []);
 
