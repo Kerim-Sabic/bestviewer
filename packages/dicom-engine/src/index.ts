@@ -1,4 +1,5 @@
 export {
+  AnnotationUid,
   ImageId,
   RenderingEngineId,
   SeriesInstanceUid,
@@ -8,6 +9,12 @@ export {
   ViewportId,
   type Brand
 } from "./brand";
+export {
+  MEASUREMENT_TOOL_NAMES,
+  isMeasurementToolName,
+  type Measurement,
+  type MeasurementToolName
+} from "./measurement";
 export {
   buildFrameImageId,
   buildSeriesMetadataUrl,

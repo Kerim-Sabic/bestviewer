@@ -1,6 +1,7 @@
 import {
   Enums as CoreEnums,
   RenderingEngine,
+  eventTarget,
   type StackViewport
 } from "@cornerstonejs/core";
 import {
@@ -14,15 +15,23 @@ import {
   StackScrollTool,
   ToolGroupManager,
   WindowLevelTool,
-  ZoomTool
+  ZoomTool,
+  annotation
 } from "@cornerstonejs/tools";
 
 import {
+  AnnotationUid,
   ImageId,
   RenderingEngineId,
   ToolGroupId,
   ViewportId
 } from "./brand";
+import {
+  toCornerstoneToolName,
+  toMeasurement,
+  type Measurement,
+  type MeasurementToolName
+} from "./measurement";
 import { ensureCornerstoneRuntime, type CornerstoneRuntimeOptions } from "./runtime";
 import { err, getErrorMessage, ok, type Result } from "./result";
 import { toVoiRange, type WindowLevelPreset } from "./window-level";
@@ -57,11 +66,15 @@ export interface StackViewportController {
   readonly viewport: StackViewport;
   readonly viewportId: ViewportId;
   destroy: () => void;
+  getActiveTool: () => MeasurementToolName | null;
   getFrameState: () => StackFrameState;
+  getMeasurements: () => readonly Measurement[];
   loadStack: (
     imageIds: readonly ImageId[],
     options?: LoadStackOptions
   ) => Promise<Result<void, ViewportError>>;
+  removeMeasurement: (uid: AnnotationUid) => void;
+  setActiveTool: (tool: MeasurementToolName | null) => void;
   setFrameIndex: (imageIdIndex: number) => Promise<Result<StackFrameState, ViewportError>>;
   setWindowLevel: (preset: WindowLevelPreset) => void;
   stepFrame: (
@@ -69,6 +82,7 @@ export interface StackViewportController {
     options?: { readonly loop?: boolean }
   ) => Promise<Result<StackFrameState, ViewportError>>;
   subscribeToFrameChange: (listener: (state: StackFrameState) => void) => () => void;
+  subscribeToMeasurements: (listener: () => void) => () => void;
 }
 
 export function createStackViewport(
@@ -103,16 +117,37 @@ export function createStackViewport(
     return toolGroupResult;
   }
 
+  const measurementListeners = new Set<() => void>();
+  let measurementSnapshot: readonly Measurement[] = readMeasurementSnapshot();
+  let activeTool: MeasurementToolName | null = null;
+
+  const handleAnnotationChange = (): void => {
+    measurementSnapshot = readMeasurementSnapshot();
+    for (const listener of measurementListeners) {
+      listener();
+    }
+  };
+
+  for (const eventName of ANNOTATION_EVENT_NAMES) {
+    eventTarget.addEventListener(eventName, handleAnnotationChange);
+  }
+
   return ok({
     renderingEngineId: input.renderingEngineId,
     toolGroupId: input.toolGroupId,
     viewport,
     viewportId: input.viewportId,
     destroy: () => {
+      for (const eventName of ANNOTATION_EVENT_NAMES) {
+        eventTarget.removeEventListener(eventName, handleAnnotationChange);
+      }
+      measurementListeners.clear();
       ToolGroupManager.destroyToolGroup(input.toolGroupId);
       renderingEngine.destroy();
     },
+    getActiveTool: () => activeTool,
     getFrameState: () => getStackFrameState(viewport),
+    getMeasurements: () => measurementSnapshot,
     loadStack: async (imageIds, options) => {
       try {
         await viewport.setStack([...imageIds], options?.currentImageIdIndex ?? 0);
@@ -130,6 +165,14 @@ export function createStackViewport(
       }
     },
     setFrameIndex: async (imageIdIndex) => setViewportFrameIndex(viewport, imageIdIndex),
+    removeMeasurement: (uid) => {
+      annotation.state.removeAnnotation(uid);
+      viewport.render();
+    },
+    setActiveTool: (tool) => {
+      setStackActiveTool({ activeTool: tool, toolGroupId: input.toolGroupId });
+      activeTool = tool;
+    },
     setWindowLevel: (preset) => {
       viewport.setProperties({
         voiRange: toVoiRange(preset)
@@ -167,6 +210,12 @@ export function createStackViewport(
           CoreEnums.Events.STACK_VIEWPORT_SCROLL,
           handleFrameChange
         );
+      };
+    },
+    subscribeToMeasurements: (listener) => {
+      measurementListeners.add(listener);
+      return () => {
+        measurementListeners.delete(listener);
       };
     }
   });
@@ -241,6 +290,47 @@ const ANNOTATION_TOOL_NAMES = [
   BidirectionalTool.toolName,
   AngleTool.toolName
 ] as const;
+
+const ANNOTATION_EVENT_NAMES = [
+  ToolsEnums.Events.ANNOTATION_ADDED,
+  ToolsEnums.Events.ANNOTATION_COMPLETED,
+  ToolsEnums.Events.ANNOTATION_MODIFIED,
+  ToolsEnums.Events.ANNOTATION_REMOVED
+] as const;
+
+function setStackActiveTool(input: {
+  readonly activeTool: MeasurementToolName | null;
+  readonly toolGroupId: ToolGroupId;
+}): void {
+  const toolGroup = ToolGroupManager.getToolGroup(input.toolGroupId);
+
+  if (!toolGroup) {
+    return;
+  }
+
+  for (const toolName of ANNOTATION_TOOL_NAMES) {
+    toolGroup.setToolPassive(toolName);
+  }
+
+  if (input.activeTool === null) {
+    toolGroup.setToolActive(WindowLevelTool.toolName, {
+      bindings: [{ mouseButton: ToolsEnums.MouseBindings.Primary }]
+    });
+    return;
+  }
+
+  toolGroup.setToolPassive(WindowLevelTool.toolName);
+  toolGroup.setToolActive(toCornerstoneToolName(input.activeTool), {
+    bindings: [{ mouseButton: ToolsEnums.MouseBindings.Primary }]
+  });
+}
+
+function readMeasurementSnapshot(): readonly Measurement[] {
+  return annotation.state
+    .getAllAnnotations()
+    .map(toMeasurement)
+    .filter((measurement): measurement is Measurement => measurement !== null);
+}
 
 async function setViewportFrameIndex(
   viewport: StackViewport,
