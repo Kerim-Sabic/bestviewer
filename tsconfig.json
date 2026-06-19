@@ -7,6 +7,10 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "noEmit": true,
+    "rootDirs": [
+      ".",
+      "src"
+    ],
     "paths": {
       "@horalix/dicom-engine": [
         "packages/dicom-engine/src/index.ts"

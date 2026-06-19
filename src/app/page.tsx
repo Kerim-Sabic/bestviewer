@@ -1,5 +1,5 @@
-import { ReadingRoomShell } from "@/features/viewer/components/reading-room-shell";
+import { ViewerClient } from "./viewer-client";
 
 export default function Home() {
-  return <ReadingRoomShell />;
+  return <ViewerClient />;
 }

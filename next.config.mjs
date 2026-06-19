@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    parallelServerBuildTraces: false,
+    parallelServerCompiles: false,
+    webpackBuildWorker: false
+  },
   transpilePackages: ["@horalix/dicom-engine"],
   webpack(config) {
     config.resolve.fallback = {
