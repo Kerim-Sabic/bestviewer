@@ -1,0 +1,19 @@
+services:
+  orthanc:
+    image: orthancteam/orthanc:latest
+    container_name: horalix-orthanc
+    ports:
+      - "8042:8042"
+      - "4242:4242"
+    environment:
+      DICOM_WEB_PLUGIN_ENABLED: "true"
+      ORTHANC__AUTHENTICATION_ENABLED: "false"
+      ORTHANC__DICOM_WEB__SERIES_METADATA: "Full"
+      ORTHANC__DICOM_WEB__STUDIES_METADATA: "Full"
+    volumes:
+      - horalix-orthanc-storage:/var/lib/orthanc/db
+    restart: unless-stopped
+
+volumes:
+  horalix-orthanc-storage:
+    name: horalix-orthanc-storage

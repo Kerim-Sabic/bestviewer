@@ -1,0 +1,32 @@
+{
+  "name": "horalix-dicom-viewer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run build --workspace @horalix/dicom-engine && next dev",
+    "build": "npm run build --workspace @horalix/dicom-engine && next build",
+    "typecheck": "npm run typecheck --workspace @horalix/dicom-engine && tsc --noEmit",
+    "lint": "eslint . --max-warnings=0"
+  },
+  "dependencies": {
+    "@horalix/dicom-engine": "file:packages/dicom-engine",
+    "lucide-react": "1.20.0",
+    "next": "15.5.19",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "3.3.1",
+    "@types/node": "24.10.1",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.2",
+    "eslint-config-next": "15.5.19",
+    "typescript": "5.9.3"
+  }
+}
