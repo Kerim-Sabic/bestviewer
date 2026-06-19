@@ -38,7 +38,10 @@ export function ReadingRoomShell() {
   // to window/level. Codes (not keys) keep bindings stable across layouts.
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.metaKey || event.ctrlKey || event.altKey || event.defaultPrevented) {
+      // NB: do not bail on event.defaultPrevented — Cornerstone calls
+      // preventDefault() on keydowns while its viewport is focused, which is
+      // exactly the common case (click the image, then press a tool key).
+      if (event.metaKey || event.ctrlKey || event.altKey) {
         return;
       }
 

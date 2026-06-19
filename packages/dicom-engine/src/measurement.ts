@@ -108,14 +108,19 @@ const annotationEnvelope = z.object({
   })
 });
 
+// Pixel-value statistics are scalar for grayscale data but arrive as a
+// per-channel array for RGB images (e.g. color ultrasound). Accept both and
+// normalize with firstChannel() below.
+const channelValue = z.union([z.number(), z.array(z.number()).min(1)]);
+
 const lengthStats = z.object({ length: z.number(), unit: z.string() });
-const probeStats = z.object({ value: z.number(), Modality: z.string().default("") });
+const probeStats = z.object({ value: channelValue, Modality: z.string().default("") });
 const roiStats = z.object({
   area: z.number(),
   areaUnit: z.string(),
-  mean: z.number(),
-  stdDev: z.number(),
-  max: z.number(),
+  mean: channelValue,
+  stdDev: channelValue,
+  max: channelValue,
   Modality: z.string().default("")
 });
 const bidirectionalStats = z.object({
@@ -169,7 +174,13 @@ export function toMeasurement(input: unknown): Measurement | null {
     case "probe": {
       const stats = probeStats.safeParse(firstStats);
       return stats.success
-        ? { toolName: "probe", uid, label, value: stats.data.value, modality: stats.data.Modality }
+        ? {
+            toolName: "probe",
+            uid,
+            label,
+            value: firstChannel(stats.data.value),
+            modality: stats.data.Modality
+          }
         : null;
     }
     case "rectangleRoi": {
@@ -181,9 +192,9 @@ export function toMeasurement(input: unknown): Measurement | null {
             label,
             area: stats.data.area,
             areaUnit: stats.data.areaUnit,
-            mean: stats.data.mean,
-            stdDev: stats.data.stdDev,
-            max: stats.data.max,
+            mean: firstChannel(stats.data.mean),
+            stdDev: firstChannel(stats.data.stdDev),
+            max: firstChannel(stats.data.max),
             modality: stats.data.Modality
           }
         : null;
@@ -220,4 +231,13 @@ function firstValue(record: Record<string, unknown> | undefined): unknown {
   }
 
   return undefined;
+}
+
+function firstChannel(value: number | number[]): number {
+  if (typeof value === "number") {
+    return value;
+  }
+
+  const [first] = value;
+  return first ?? 0;
 }
