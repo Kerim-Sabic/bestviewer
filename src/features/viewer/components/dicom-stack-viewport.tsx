@@ -314,8 +314,11 @@ export function DicomStackViewport({
         <div ref={elementRef} className="cornerstone-element" />
         {!series ? (
           <div className="viewport-empty">
-            <Layers size={28} aria-hidden="true" />
-            <span>No study loaded</span>
+            <span className="viewport-empty-mark" aria-hidden="true">
+              <Layers size={30} />
+            </span>
+            <strong>No study loaded</strong>
+            <span>Select a series from the Studies panel, or load one by UID.</span>
           </div>
         ) : null}
         {viewportStatus.status === "error" ? (
