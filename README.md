@@ -59,11 +59,22 @@ The viewer proxy defaults to `http://localhost:8042/dicom-web`. Override it with
 The local Orthanc container disables authentication for development only. Do not expose
 it outside your machine.
 
-## Current milestone
+## Current status
 
-The repo has passed the first local integration milestone: the viewer app can reach a
-live Orthanc DICOMweb server, list uploaded studies through the app API, load a selected
-series without pasting UIDs, fetch series metadata through the Next proxy, and retrieve
-pixel frame payloads from an uploaded local study.
+Beyond the first Orthanc integration milestone, the viewer now has:
 
-AI segmentation and GPU inference are intentionally still later milestones.
+- **Rendering** — stack viewport from Orthanc DICOMweb (browse studies, load a
+  series without pasting UIDs) and from **local DICOM files** dropped straight
+  from your PC (no PACS round trip).
+- **Measurement** — Length, Probe, Rectangle ROI, Bidirectional and Angle tools
+  with a live measurement panel, layout-independent hotkeys, and window/level
+  presets. Units are calibration-honest: millimetres only when `PixelSpacing`
+  is present, pixels (flagged "uncalibrated") otherwise.
+- **Cine** — play/pause, scrub, frame rate, loop/bounce for multi-frame loops.
+- **AI segmentation seam** — a model-agnostic, typed inference contract
+  (`packages/dicom-engine/src/segmentation.ts`) plus an on-prem GPU service
+  scaffold (`services/segmentation/`). The prompt UI and labelmap rendering are
+  the next step; the GPU service must be deployed for inference to run.
+
+Volume/MPR and the VLM report panel remain later milestones. AI masks always
+originate in the validated service, never in a language model (SaMD line).
