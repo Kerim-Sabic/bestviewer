@@ -1211,3 +1211,75 @@ button:disabled {
 .upload-input {
   display: none;
 }
+
+.stow-panel {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-panel);
+  background: color-mix(in oklch, var(--surface-2) 74%, var(--surface-inset));
+}
+
+.stow-panel[data-status="failed"],
+.stow-panel[data-status="partially_succeeded"] {
+  border-color: color-mix(in oklch, var(--danger) 38%, var(--border-muted));
+}
+
+.stow-panel[data-status="succeeded"] {
+  border-color: color-mix(in oklch, var(--success) 34%, var(--border-muted));
+}
+
+.stow-panel-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.stow-panel-main strong {
+  display: block;
+  color: var(--text-primary);
+  font-size: var(--font-xs);
+  line-height: 1.35;
+}
+
+.stow-panel-main span {
+  display: block;
+  margin-top: 0.125rem;
+  overflow-wrap: anywhere;
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  line-height: 1.4;
+}
+
+.stow-panel-icon {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.stow-panel[data-status="failed"] .stow-panel-icon,
+.stow-panel[data-status="partially_succeeded"] .stow-panel-icon {
+  color: var(--danger);
+}
+
+.stow-panel[data-status="succeeded"] .stow-panel-icon {
+  color: var(--success);
+}
+
+.stow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.spin-icon {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

@@ -1,8 +1,10 @@
 "use client";
 
 import { Database, RefreshCw, Server } from "lucide-react";
+import { useRef, useState } from "react";
 
 import { LocalUploadDropzone } from "./local-upload-dropzone";
+import { LocalOrthancPushPanel } from "./local-orthanc-push-panel";
 import { ManualSeriesForm } from "./manual-series-form";
 import { StudyBrowserList } from "./study-browser-list";
 import { useStudyBrowser } from "../hooks/use-study-browser";
@@ -12,7 +14,8 @@ import {
   type LoadDicomWebSeriesInput
 } from "../lib/load-dicomweb-series";
 import { loadLocalSeries } from "../lib/load-local-series";
-import type { LoadedSeries, LoadStatus } from "../types";
+import { pushFilesToOrthancStow } from "../lib/stow-rs-client";
+import type { LoadedSeries, LoadStatus, StowUploadState } from "../types";
 
 interface StudyLoaderPanelProps {
   readonly activeSeriesInstanceUid: string | null;
@@ -30,6 +33,9 @@ export function StudyLoaderPanel({
   onSeriesLoaded
 }: StudyLoaderPanelProps) {
   const browser = useStudyBrowser();
+  const [localFiles, setLocalFiles] = useState<readonly File[]>([]);
+  const [stowState, setStowState] = useState<StowUploadState>({ status: "idle" });
+  const activeStowRequestRef = useRef<AbortController | null>(null);
 
   async function handleLoadSeries(input: LoadDicomWebSeriesInput) {
     onLoadStatusChange({ status: "loading" });
@@ -49,6 +55,8 @@ export function StudyLoaderPanel({
   }
 
   async function handleLocalFiles(files: File[]) {
+    setLocalFiles(files);
+    setStowState({ status: "idle" });
     onLoadStatusChange({ status: "loading" });
 
     const result = await loadLocalSeries(files);
@@ -62,6 +70,55 @@ export function StudyLoaderPanel({
     onLoadStatusChange({
       status: "success",
       imageCount: result.value.imageIds.length
+    });
+  }
+
+  async function handlePushToOrthanc() {
+    if (localFiles.length === 0 || isStowRunning(stowState)) {
+      return;
+    }
+
+    const fileCount = localFiles.length;
+    const controller = new AbortController();
+
+    activeStowRequestRef.current = controller;
+    setStowState({ fileCount, status: "preparing" });
+    setStowState({ fileCount, status: "uploading" });
+
+    const result = await pushFilesToOrthancStow(localFiles, controller.signal);
+
+    if (activeStowRequestRef.current !== controller) {
+      return;
+    }
+
+    activeStowRequestRef.current = null;
+
+    if (!result.ok) {
+      setStowState(result.error);
+      return;
+    }
+
+    setStowState({
+      accepted: result.value.accepted,
+      fileCount: result.value.fileCount,
+      rejected: result.value.rejected,
+      status: result.value.status,
+      studyRetrieveUrl: result.value.studyRetrieveUrl
+    });
+
+    await browser.refresh();
+  }
+
+  function handleCancelStow() {
+    const fileCount = localFiles.length;
+
+    activeStowRequestRef.current?.abort();
+    activeStowRequestRef.current = null;
+    setStowState({
+      fileCount,
+      message: "STOW-RS upload was cancelled.",
+      reason: "cancelled",
+      status: "failed"
     });
   }
 
@@ -84,8 +141,15 @@ export function StudyLoaderPanel({
       </div>
 
       <LocalUploadDropzone
-        disabled={loadStatus.status === "loading"}
+        disabled={loadStatus.status === "loading" || isStowRunning(stowState)}
         onFiles={(files) => void handleLocalFiles(files)}
+      />
+
+      <LocalOrthancPushPanel
+        fileCount={localFiles.length}
+        onCancel={handleCancelStow}
+        onPush={() => void handlePushToOrthanc()}
+        state={stowState}
       />
 
       <StudyBrowserList
@@ -111,6 +175,10 @@ export function StudyLoaderPanel({
       </div>
     </section>
   );
+}
+
+function isStowRunning(state: StowUploadState): boolean {
+  return state.status === "preparing" || state.status === "uploading";
 }
 
 function getLoadStatusText(status: LoadStatus): string {
