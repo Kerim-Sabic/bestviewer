@@ -26,6 +26,11 @@ export {
   type FrameImageIdInput
 } from "./dicomweb";
 export {
+  loadLocalDicomFiles,
+  type LocalDicomError,
+  type LocalSeries
+} from "./local-file";
+export {
   createStackViewport,
   type LoadStackOptions,
   type StackFrameState,

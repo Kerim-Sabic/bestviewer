@@ -2,6 +2,7 @@
 
 import { Database, RefreshCw, Server } from "lucide-react";
 
+import { LocalUploadDropzone } from "./local-upload-dropzone";
 import { ManualSeriesForm } from "./manual-series-form";
 import { StudyBrowserList } from "./study-browser-list";
 import { useStudyBrowser } from "../hooks/use-study-browser";
@@ -10,6 +11,7 @@ import {
   loadDicomWebSeries,
   type LoadDicomWebSeriesInput
 } from "../lib/load-dicomweb-series";
+import { loadLocalSeries } from "../lib/load-local-series";
 import type { LoadedSeries, LoadStatus } from "../types";
 
 interface StudyLoaderPanelProps {
@@ -46,6 +48,23 @@ export function StudyLoaderPanel({
     });
   }
 
+  async function handleLocalFiles(files: File[]) {
+    onLoadStatusChange({ status: "loading" });
+
+    const result = await loadLocalSeries(files);
+
+    if (!result.ok) {
+      onLoadStatusChange({ status: "error", message: result.message });
+      return;
+    }
+
+    onSeriesLoaded(result.value);
+    onLoadStatusChange({
+      status: "success",
+      imageCount: result.value.imageIds.length
+    });
+  }
+
   return (
     <section className="viewer-panel study-loader" aria-labelledby="study-loader-title">
       <div className="panel-heading study-loader-heading">
@@ -63,6 +82,11 @@ export function StudyLoaderPanel({
           <RefreshCw size={15} />
         </button>
       </div>
+
+      <LocalUploadDropzone
+        disabled={loadStatus.status === "loading"}
+        onFiles={(files) => void handleLocalFiles(files)}
+      />
 
       <StudyBrowserList
         activeSeriesInstanceUid={activeSeriesInstanceUid}
