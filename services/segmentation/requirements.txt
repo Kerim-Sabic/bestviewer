@@ -1,0 +1,15 @@
+# API server (CPU-only deps; pin exact versions for reproducible builds)
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.4
+
+# --- Model backend (GPU) ---------------------------------------------------
+# Add these pinned to YOUR CUDA build when you wire load_backend():
+#   torch==2.4.1            # match the CUDA in the Dockerfile base image
+#   torchvision==0.19.1
+#   numpy
+#   pydicom                 # to pull frames from PACS / decode pixel data
+# plus the chosen model, e.g. one of:
+#   "sam2 @ git+https://github.com/facebookresearch/sam2.git"
+#   MedSAM2 (per its repo instructions)
+#   nninteractive (per its repo instructions)
