@@ -3,11 +3,13 @@
 import type {
   AnnotationUid,
   MeasurementToolName,
+  StackFrameState,
   StackViewportController
 } from "@horalix/dicom-engine";
 import { Activity, BadgeInfo, Brain, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import { AiTrackingPanel } from "./ai-tracking-panel";
 import { DicomStackViewport } from "./dicom-stack-viewport";
 import { MeasurementPanel } from "./measurement-panel";
 import { StudyLoaderPanel } from "./study-loader-panel";
@@ -24,6 +26,9 @@ export function ReadingRoomShell() {
     useState<WindowLevelSelection>(DEFAULT_WINDOW_LEVEL);
   const [controller, setController] = useState<StackViewportController | null>(null);
   const [activeTool, setActiveTool] = useState<MeasurementToolName | null>(null);
+  const [frameState, setFrameState] = useState<StackFrameState>(
+    createEmptyFrameState
+  );
 
   const measurements = useMeasurements(controller);
 
@@ -78,6 +83,10 @@ export function ReadingRoomShell() {
     []
   );
 
+  const handleFrameStateChange = useCallback((next: StackFrameState) => {
+    setFrameState(next);
+  }, []);
+
   function handleSelectTool(tool: MeasurementToolName | null) {
     setActiveTool(tool);
   }
@@ -124,6 +133,7 @@ export function ReadingRoomShell() {
         <DicomStackViewport
           loadStatus={loadStatus}
           onControllerReady={handleControllerReady}
+          onFrameStateChange={handleFrameStateChange}
           series={loadedSeries}
           windowLevel={windowLevel}
         />
@@ -167,6 +177,8 @@ export function ReadingRoomShell() {
             onRemove={handleRemoveMeasurement}
           />
 
+          <AiTrackingPanel frameState={frameState} series={loadedSeries} />
+
           <section className="viewer-panel study-summary" aria-labelledby="summary-title">
             <div className="panel-heading">
               <span className="panel-icon" aria-hidden="true">
@@ -209,6 +221,14 @@ export function ReadingRoomShell() {
       </div>
     </main>
   );
+}
+
+function createEmptyFrameState(): StackFrameState {
+  return {
+    currentImageId: null,
+    currentIndex: 0,
+    total: 0
+  };
 }
 
 function formatFrameRate(frameRate: number | null): string {

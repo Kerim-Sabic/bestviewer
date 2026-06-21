@@ -16,6 +16,7 @@ import type {
 interface DicomStackViewportProps {
   readonly loadStatus: LoadStatus;
   readonly onControllerReady?: (controller: StackViewportController | null) => void;
+  readonly onFrameStateChange?: (state: StackFrameState) => void;
   readonly series: LoadedSeries | null;
   readonly windowLevel: WindowLevelSelection;
 }
@@ -35,6 +36,7 @@ type FrameNavigationResult = Awaited<
 export function DicomStackViewport({
   loadStatus,
   onControllerReady,
+  onFrameStateChange,
   series,
   windowLevel
 }: DicomStackViewportProps) {
@@ -60,7 +62,8 @@ export function DicomStackViewport({
 
   useEffect(() => {
     frameStateRef.current = frameState;
-  }, [frameState]);
+    onFrameStateChange?.(frameState);
+  }, [frameState, onFrameStateChange]);
 
   useEffect(() => {
     windowLevelRef.current = windowLevel;

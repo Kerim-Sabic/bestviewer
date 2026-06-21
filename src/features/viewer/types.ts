@@ -1,4 +1,8 @@
-import type { ImageId, WindowLevelPreset } from "@horalix/dicom-engine";
+import type {
+  ImageId,
+  ImageReference,
+  WindowLevelPreset
+} from "@horalix/dicom-engine";
 
 import type {
   StowInstanceFailure,
@@ -14,13 +18,19 @@ export type LoadStatus =
 
 export interface LoadedSeries {
   readonly imageIds: ImageId[];
+  readonly imageReferences: readonly LoadedImageReference[];
   readonly instanceCount: number;
   readonly loadedAt: string;
   readonly recommendedFrameRate: number | null;
   readonly seriesInstanceUid: string;
+  readonly source: "dicomweb" | "local";
   readonly studyInstanceUid: string;
   readonly wadoRoot: string;
 }
+
+export type LoadedImageReference = ImageReference & {
+  readonly imageId: ImageId;
+};
 
 export interface WindowLevelSelection {
   readonly key: string;

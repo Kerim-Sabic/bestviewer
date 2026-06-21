@@ -26,10 +26,12 @@ export async function loadLocalSeries(
     ok: true,
     value: {
       imageIds: [...series.imageIds],
+      imageReferences: [],
       instanceCount: series.instanceCount,
       loadedAt: new Date().toISOString(),
       recommendedFrameRate: series.recommendedFrameRate,
       seriesInstanceUid: series.seriesInstanceUid ?? series.description ?? "Local series",
+      source: "local",
       studyInstanceUid: series.studyInstanceUid ?? "Local upload",
       wadoRoot: "local"
     }

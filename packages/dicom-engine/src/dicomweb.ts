@@ -8,6 +8,7 @@ import {
   StudyInstanceUid
 } from "./brand";
 import { err, getErrorMessage, ok, type Result } from "./result";
+import type { ImageReference } from "./segmentation";
 
 const SOP_INSTANCE_UID_TAG = "00080018";
 const RECOMMENDED_DISPLAY_FRAME_RATE_TAG = "00082144";
@@ -47,6 +48,7 @@ export interface DicomWebSeriesRequest {
 
 export interface DicomWebSeries {
   readonly imageIds: ImageId[];
+  readonly imageReferences: readonly ImageReference[];
   readonly instances: readonly DicomWebMetadata[];
   readonly recommendedFrameRate: number | null;
 }
@@ -71,6 +73,7 @@ export async function fetchDicomWebSeries(
   }
 
   const imageIds: ImageId[] = [];
+  const imageReferences: ImageReference[] = [];
 
   for (const [index, metadata] of parsed.data.entries()) {
     const sopInstanceUid = readString(metadata, SOP_INSTANCE_UID_TAG);
@@ -93,11 +96,18 @@ export async function fetchDicomWebSeries(
 
       wadors.metaDataManager.add(imageId, wadorsMetadata);
       imageIds.push(imageId);
+      imageReferences.push({
+        frameIndex: frame - 1,
+        seriesInstanceUid: request.seriesInstanceUid,
+        sopInstanceUid,
+        studyInstanceUid: request.studyInstanceUid
+      });
     }
   }
 
   return ok({
     imageIds,
+    imageReferences,
     instances: parsed.data,
     recommendedFrameRate: readRecommendedFrameRate(parsed.data)
   });

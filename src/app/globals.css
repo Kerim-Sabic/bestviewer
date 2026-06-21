@@ -303,7 +303,8 @@ button:disabled {
   font-size: var(--font-xs);
 }
 
-.field input {
+.field input,
+.field select {
   width: 100%;
   min-width: 0;
   min-height: 2.5rem;
@@ -1039,14 +1040,16 @@ button:disabled {
   box-shadow: var(--shadow-panel);
 }
 
-.field input {
+.field input,
+.field select {
   background: var(--surface-inset);
   transition:
     border-color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
 }
 
-.field input:focus-visible {
+.field input:focus-visible,
+.field select:focus-visible {
   border-color: color-mix(in oklch, var(--accent) 55%, var(--border-strong));
 }
 
@@ -1282,4 +1285,99 @@ button:disabled {
   to {
     transform: rotate(360deg);
   }
+}
+
+.ai-panel-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.ai-status-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: center;
+  min-height: 2.25rem;
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  line-height: 1.4;
+}
+
+.ai-status-row[data-status="unavailable"] {
+  color: var(--danger);
+}
+
+.ai-status-row[data-status="needs_prompt"],
+.ai-status-row[data-status="ready"] {
+  color: var(--success);
+}
+
+.ai-status-row span {
+  display: inline-flex;
+}
+
+.ai-status-row strong {
+  overflow-wrap: anywhere;
+  color: currentColor;
+  font-weight: 600;
+}
+
+.ai-control-grid {
+  display: grid;
+  grid-template-columns: minmax(4.5rem, 0.35fr) minmax(0, 0.65fr);
+  gap: var(--space-2);
+}
+
+.segmented-control {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.segmented-control button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 2.25rem;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-panel);
+  color: var(--text-secondary);
+  background: var(--surface-2);
+  font-size: var(--font-xs);
+  cursor: pointer;
+}
+
+.segmented-control button[data-active="true"] {
+  border-color: color-mix(in oklch, var(--accent) 52%, var(--border-muted));
+  color: var(--accent-strong);
+  background: color-mix(in oklch, var(--accent-soft) 44%, var(--surface-2));
+}
+
+.segmented-control button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+}
+
+.checkbox-row input {
+  accent-color: var(--accent);
+}
+
+.ai-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.ai-provenance {
+  padding: 0;
 }

@@ -1,5 +1,5 @@
 import { formatDicomWebError } from "./dicomweb-errors";
-import type { LoadedSeries } from "../types";
+import type { LoadedImageReference, LoadedSeries } from "../types";
 
 export interface LoadDicomWebSeriesInput {
   readonly seriesInstanceUid: string;
@@ -39,10 +39,12 @@ export async function loadDicomWebSeries(
       ok: true,
       value: {
         imageIds: result.value.imageIds,
+        imageReferences: toLoadedImageReferences(result.value),
         instanceCount: result.value.instances.length,
         loadedAt: new Date().toISOString(),
         recommendedFrameRate: result.value.recommendedFrameRate,
         seriesInstanceUid,
+        source: "dicomweb",
         studyInstanceUid,
         wadoRoot
       }
@@ -58,6 +60,23 @@ export function getDefaultDicomWebRoot(): string {
   }
 
   return new URL("/api/dicomweb", window.location.origin).toString();
+}
+
+function toLoadedImageReferences(series: {
+  readonly imageIds: LoadedSeries["imageIds"];
+  readonly imageReferences: readonly Omit<LoadedImageReference, "imageId">[];
+}): LoadedSeries["imageReferences"] {
+  const references: LoadedImageReference[] = [];
+
+  for (const [index, imageId] of series.imageIds.entries()) {
+    const imageReference = series.imageReferences[index];
+
+    if (imageReference) {
+      references.push({ ...imageReference, imageId });
+    }
+  }
+
+  return references;
 }
 
 function getLoadErrorMessage(error: unknown): string {
