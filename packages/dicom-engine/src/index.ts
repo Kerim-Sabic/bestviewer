@@ -31,6 +31,19 @@ export {
   type LocalSeries
 } from "./local-file";
 export {
+  decodeFrameMask,
+  runSegmentation,
+  segmentationRequestSchema,
+  segmentationResponseSchema,
+  type DecodedFrameMask,
+  type ImageReference,
+  type InferenceError,
+  type RunSegmentationOptions,
+  type SegmentationPrompt,
+  type SegmentationRequest,
+  type SegmentationResult
+} from "./segmentation";
+export {
   createStackViewport,
   type LoadStackOptions,
   type StackFrameState,
