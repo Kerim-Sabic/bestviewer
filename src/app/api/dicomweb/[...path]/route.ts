@@ -36,7 +36,18 @@ export async function GET(
   const acceptHeader = request.headers.get("accept");
   const rangeHeader = request.headers.get("range");
 
-  if (acceptHeader) {
+  // Rendered/preview image endpoints: the browser's <img> Accept
+  // (image/avif,image/webp,...) makes Orthanc reject with 400. Force a format
+  // it serves so cine thumbnails load.
+  const lastSegment = path[path.length - 1];
+  const isRenderedImage =
+    lastSegment === "rendered" ||
+    lastSegment === "thumbnail" ||
+    lastSegment === "preview";
+
+  if (isRenderedImage) {
+    headers.set("accept", "image/jpeg");
+  } else if (acceptHeader) {
     headers.set("accept", acceptHeader);
   }
 

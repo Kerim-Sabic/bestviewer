@@ -6,31 +6,36 @@ import type {
   StackFrameState,
   StackViewportController
 } from "@horalix/dicom-engine";
-import { BadgeInfo, Box, ChevronLeft, Layers } from "lucide-react";
+import { BadgeInfo, Box, ChevronLeft, Film, Layers } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { AiTrackingPanel } from "./ai-tracking-panel";
 import { CardiacFunctionPanel } from "./cardiac-function-panel";
+import { CineRail } from "./cine-rail";
 import { DicomStackViewport } from "./dicom-stack-viewport";
 import { MeasurementPanel } from "./measurement-panel";
 import { MprViewport } from "./mpr-viewport";
-import { SeriesRail } from "./series-rail";
 import { ToolPalette } from "./tool-palette";
 import { VlmReportPanel } from "./vlm-report-panel";
 import { useAiSegmentation } from "../hooks/use-ai-segmentation";
 import { useMeasurements } from "../hooks/use-measurements";
 import { useStudyBrowser } from "../hooks/use-study-browser";
 import { DEFAULT_WINDOW_LEVEL, WINDOW_LEVEL_OPTIONS } from "../lib/defaults";
-import {
-  getDefaultDicomWebRoot,
-  loadDicomWebSeries
-} from "../lib/load-dicomweb-series";
+import { getDefaultDicomWebRoot } from "../lib/load-dicomweb-series";
 import { toolForHotkeyCode } from "../lib/measurement-tools";
-import type { StudyBrowserSeries } from "../lib/study-browser-schema";
+import {
+  cineToLoadedSeries,
+  loadStudyCines,
+  type Cine
+} from "../lib/study-cines";
 import type { LoadedSeries, LoadStatus, WindowLevelSelection } from "../types";
 
 type ViewerLayout = "stack" | "mpr";
+type CinesStatus =
+  | { readonly status: "loading" }
+  | { readonly status: "ready" }
+  | { readonly status: "error"; readonly message: string };
 
 interface ReadingRoomShellProps {
   readonly studyInstanceUid: string;
@@ -46,9 +51,13 @@ export function ReadingRoomShell({ studyInstanceUid }: ReadingRoomShellProps) {
       : null;
   const seriesList = useMemo(() => study?.series ?? [], [study]);
 
+  const [cines, setCines] = useState<readonly Cine[]>([]);
+  const [cinesStatus, setCinesStatus] = useState<CinesStatus>({
+    status: "loading"
+  });
+  const [activeCineId, setActiveCineId] = useState<string | null>(null);
   const [loadedSeries, setLoadedSeries] = useState<LoadedSeries | null>(null);
   const [loadStatus, setLoadStatus] = useState<LoadStatus>({ status: "idle" });
-  const [loadingSeriesUid, setLoadingSeriesUid] = useState<string | null>(null);
   const [windowLevel, setWindowLevel] =
     useState<WindowLevelSelection>(DEFAULT_WINDOW_LEVEL);
   const [controller, setController] = useState<StackViewportController | null>(null);
@@ -57,52 +66,47 @@ export function ReadingRoomShell({ studyInstanceUid }: ReadingRoomShellProps) {
   const [frameState, setFrameState] = useState<StackFrameState>(
     createEmptyFrameState
   );
-  const autoLoadedRef = useRef(false);
+  const cinesLoadedRef = useRef(false);
 
   const measurements = useMeasurements(controller);
   const ai = useAiSegmentation({ controller, series: loadedSeries, frameState });
 
   const supportsMpr = loadedSeries !== null && loadedSeries.instanceCount > 1;
 
-  const handleLoadSeries = useCallback(
-    async (series: StudyBrowserSeries) => {
-      setLoadingSeriesUid(series.seriesInstanceUid);
-      setLoadStatus({ status: "loading" });
-      setLayout("stack");
+  const handleSelectCine = useCallback((cine: Cine) => {
+    setActiveCineId(cine.id);
+    setLayout("stack");
+    setLoadedSeries(cineToLoadedSeries(cine, getDefaultDicomWebRoot()));
+    setLoadStatus({ status: "success", imageCount: cine.imageIds.length });
+  }, []);
 
-      const result = await loadDicomWebSeries({
-        seriesInstanceUid: series.seriesInstanceUid,
-        studyInstanceUid,
-        wadoRoot: getDefaultDicomWebRoot()
-      });
+  // Once the study's series are known, split it into cines and open the first.
+  useEffect(() => {
+    if (cinesLoadedRef.current || seriesList.length === 0) {
+      return;
+    }
+    cinesLoadedRef.current = true;
+    setCinesStatus({ status: "loading" });
+    setLoadStatus({ status: "loading" });
 
-      setLoadingSeriesUid(null);
-
+    void loadStudyCines({
+      studyInstanceUid,
+      series: seriesList,
+      wadoRoot: getDefaultDicomWebRoot()
+    }).then((result) => {
       if (!result.ok) {
+        setCinesStatus({ status: "error", message: result.message });
         setLoadStatus({ status: "error", message: result.message });
         return;
       }
-
-      setLoadedSeries(result.value);
-      setLoadStatus({
-        status: "success",
-        imageCount: result.value.imageIds.length
-      });
-    },
-    [studyInstanceUid]
-  );
-
-  // Auto-open the first cine once the study's series arrive.
-  useEffect(() => {
-    if (autoLoadedRef.current) {
-      return;
-    }
-    const first = seriesList.find((series) => series.isLoadable);
-    if (first) {
-      autoLoadedRef.current = true;
-      void handleLoadSeries(first);
-    }
-  }, [seriesList, handleLoadSeries]);
+      setCines(result.cines);
+      setCinesStatus({ status: "ready" });
+      const first = result.cines[0];
+      if (first) {
+        handleSelectCine(first);
+      }
+    });
+  }, [seriesList, studyInstanceUid, handleSelectCine]);
 
   useEffect(() => {
     controller?.setActiveTool(activeTool);
@@ -144,8 +148,6 @@ export function ReadingRoomShell({ studyInstanceUid }: ReadingRoomShellProps) {
   function handleRemoveMeasurement(uid: AnnotationUid) {
     controller?.removeMeasurement(uid);
   }
-
-  const activeSeriesUid = loadedSeries?.seriesInstanceUid ?? null;
 
   return (
     <main className="reading-room">
@@ -189,23 +191,27 @@ export function ReadingRoomShell({ studyInstanceUid }: ReadingRoomShellProps) {
           <section className="viewer-panel series-panel" aria-labelledby="cines-title">
             <div className="panel-heading">
               <span className="panel-icon" aria-hidden="true">
-                <Layers size={16} />
+                <Film size={16} />
               </span>
               <h2 id="cines-title">Cines</h2>
-              <span className="panel-count">{seriesList.filter((s) => s.isLoadable).length}</span>
+              <span className="panel-count">{cines.length}</span>
             </div>
             <div className="series-rail">
-              {browser.state.status === "loading" ? (
+              {cinesStatus.status === "loading" ? (
                 <div className="skeleton-browser">
                   <div />
                   <div />
+                  <div />
                 </div>
+              ) : cinesStatus.status === "error" ? (
+                <p className="ai-inline-error" style={{ padding: "0 0.75rem" }}>
+                  {cinesStatus.message}
+                </p>
               ) : (
-                <SeriesRail
-                  activeSeriesInstanceUid={activeSeriesUid}
-                  loadingSeriesInstanceUid={loadingSeriesUid}
-                  onSelect={(series) => void handleLoadSeries(series)}
-                  series={seriesList}
+                <CineRail
+                  activeCineId={activeCineId}
+                  cines={cines}
+                  onSelect={handleSelectCine}
                 />
               )}
             </div>
