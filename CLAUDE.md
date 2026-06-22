@@ -67,9 +67,15 @@ general craft. They compose.
 - **Verify in-browser:** `node scripts/e2e-verify.mjs` (click→mask),
   `node scripts/e2e-mpr.mjs` (MPR). `scripts/make_ct_phantom.py` seeds a
   synthetic CT volume for MPR.
-- **Next (echo-focused):** auto-EF from LV propagation · cardiac measurement
-  pack (Simpson's, strain) · multi-cycle/A4C-A2C hanging protocols ·
-  swap MedGemma in for the report model.
+- **Echo UX pass:** **LV function** panel — propagate an AI segment across the
+  cardiac cycle, then auto-compute **Fractional Area Change** (ED/ES from the
+  per-frame area curve, calibrated mm² when PixelSpacing present; honestly *not*
+  called EF). Multi-frame loop labelmaps render correctly (engine keeps an
+  order-aligned frame→labelmap map). Viewport quick tools (invert `I`, flip
+  `H`/`V`, reset) + modality label. Verified in-browser: `scripts/e2e-cardiac.mjs`.
+- **Next (echo-focused):** biplane Simpson's / GLS strain · A4C/A2C/PLAX hanging
+  protocols + multi-loop sync · Doppler/velocity tools · swap MedGemma in for
+  the report model · cardiac-specialized AI (EchoNet-style) behind the same seam.
 
 ## Verify
 

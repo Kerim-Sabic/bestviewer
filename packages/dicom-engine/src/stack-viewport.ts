@@ -100,6 +100,12 @@ export interface StackViewportController {
     readonly width: number;
     readonly height: number;
   } | null;
+  setInvert: (invert: boolean) => void;
+  getInvert: () => boolean;
+  flipHorizontal: () => void;
+  flipVertical: () => void;
+  /** Reset pan/zoom/flip and un-invert, preserving the current window/level. */
+  resetView: () => void;
 }
 
 export function createStackViewport(
@@ -236,7 +242,27 @@ export function createStackViewport(
       };
     },
     toImagePoint: (canvasPoint) => canvasToImagePoint(viewport, canvasPoint),
-    toImageBox: (start, end) => canvasCornersToImageBox(viewport, start, end)
+    toImageBox: (start, end) => canvasCornersToImageBox(viewport, start, end),
+    setInvert: (invert) => {
+      viewport.setProperties({ invert });
+      viewport.render();
+    },
+    getInvert: () => viewport.getProperties().invert ?? false,
+    flipHorizontal: () => {
+      const camera = viewport.getCamera();
+      viewport.setCamera({ flipHorizontal: !camera.flipHorizontal });
+      viewport.render();
+    },
+    flipVertical: () => {
+      const camera = viewport.getCamera();
+      viewport.setCamera({ flipVertical: !camera.flipVertical });
+      viewport.render();
+    },
+    resetView: () => {
+      viewport.resetCamera();
+      viewport.setProperties({ invert: false });
+      viewport.render();
+    }
   });
 }
 

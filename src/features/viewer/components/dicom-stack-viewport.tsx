@@ -1,7 +1,15 @@
 "use client";
 
 import type { StackFrameState, StackViewportController } from "@horalix/dicom-engine";
-import { AlertTriangle, Layers, Monitor } from "lucide-react";
+import {
+  AlertTriangle,
+  Contrast,
+  FlipHorizontal2,
+  FlipVertical2,
+  Layers,
+  Monitor,
+  RotateCcw
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 import { AiSegmentationOverlay } from "./ai-segmentation-overlay";
@@ -72,6 +80,47 @@ export function DicomStackViewport({
   const [viewportStatus, setViewportStatus] = useState<ViewportStatus>({
     status: "mounting"
   });
+  const [inverted, setInverted] = useState(false);
+
+  // View-transform hotkeys: I invert, H flip-horizontal, V flip-vertical.
+  // (R is taken by ROI; reset is the toolbar button.) Echo readers flip/invert
+  // constantly, so these are first-class.
+  useEffect(() => {
+    function handleKey(event: KeyboardEvent) {
+      if (event.metaKey || event.ctrlKey || event.altKey) {
+        return;
+      }
+      const target = event.target;
+      if (
+        target instanceof HTMLElement &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      const controller = controllerRef.current;
+      if (!controller) {
+        return;
+      }
+      if (event.code === "KeyI") {
+        event.preventDefault();
+        const next = !controller.getInvert();
+        controller.setInvert(next);
+        setInverted(next);
+      } else if (event.code === "KeyH") {
+        event.preventDefault();
+        controller.flipHorizontal();
+      } else if (event.code === "KeyV") {
+        event.preventDefault();
+        controller.flipVertical();
+      }
+    }
+
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, []);
 
   useEffect(() => {
     frameStateRef.current = frameState;
@@ -170,6 +219,7 @@ export function DicomStackViewport({
     navigationInFlightRef.current = false;
     playbackDirectionRef.current = 1;
     setPlayback((current) => ({ ...current, status: "paused" }));
+    setInverted(false);
     setViewportStatus({
       status: "rendering",
       imageCount: series.imageIds.length
@@ -318,8 +368,63 @@ export function DicomStackViewport({
       <div className="viewport-toolbar">
         <div className="viewport-title">
           <Monitor size={16} aria-hidden="true" />
-          <span>Stack viewport</span>
+          <span>{series?.modality ? `${series.modality} · Stack` : "Stack viewport"}</span>
         </div>
+
+        <div className="viewport-tools" role="group" aria-label="View transforms">
+          <button
+            aria-label="Invert (I)"
+            aria-pressed={inverted}
+            className="viewport-tool"
+            data-active={inverted}
+            disabled={!series}
+            onClick={() => {
+              const controller = controllerRef.current;
+              if (!controller) return;
+              const next = !controller.getInvert();
+              controller.setInvert(next);
+              setInverted(next);
+            }}
+            title="Invert (I)"
+            type="button"
+          >
+            <Contrast size={15} />
+          </button>
+          <button
+            aria-label="Flip horizontal (H)"
+            className="viewport-tool"
+            disabled={!series}
+            onClick={() => controllerRef.current?.flipHorizontal()}
+            title="Flip horizontal (H)"
+            type="button"
+          >
+            <FlipHorizontal2 size={15} />
+          </button>
+          <button
+            aria-label="Flip vertical (V)"
+            className="viewport-tool"
+            disabled={!series}
+            onClick={() => controllerRef.current?.flipVertical()}
+            title="Flip vertical (V)"
+            type="button"
+          >
+            <FlipVertical2 size={15} />
+          </button>
+          <button
+            aria-label="Reset view"
+            className="viewport-tool"
+            disabled={!series}
+            onClick={() => {
+              controllerRef.current?.resetView();
+              setInverted(false);
+            }}
+            title="Reset view"
+            type="button"
+          >
+            <RotateCcw size={15} />
+          </button>
+        </div>
+
         <div className="viewport-badges">
           <span>{windowLevel.preset.label}</span>
           <span>{getViewportStatusText(viewportStatus, loadStatus)}</span>

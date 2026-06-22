@@ -3,6 +3,7 @@
 import {
   SegmentationId,
   createStackLabelmap,
+  measureSegmentAreas,
   removeLabelmap,
   runSegmentation,
   setActiveSegment,
@@ -26,6 +27,7 @@ import {
   type PromptMode,
   type SegmentDefinition
 } from "../lib/ai-segmentation";
+import { computeLvFunction, type LvFunctionResult } from "../lib/cardiac-function";
 import { fetchSegmentationServiceStatus } from "../lib/segmentation-service-client";
 import type { SegmentationServiceModel } from "../lib/segmentation-service-schema";
 import { exportSegmentationToOrthanc } from "../lib/seg-export-client";
@@ -72,6 +74,9 @@ export interface UseAiSegmentationReturn {
   readonly opacity: number;
   readonly canRun: boolean;
   readonly hasMask: boolean;
+  readonly lvFunction: LvFunctionResult | null;
+  computeFunction: () => void;
+  jumpToFrame: (frameIndex: number) => void;
   refreshService: () => void;
   setSelectedModelId: (id: string) => void;
   setPromptMode: (mode: PromptMode) => void;
@@ -118,6 +123,7 @@ export function useAiSegmentation(
     status: "idle"
   });
   const [hasMask, setHasMask] = useState(false);
+  const [lvFunction, setLvFunction] = useState<LvFunctionResult | null>(null);
 
   const segmentationIdRef = useRef<SegmentationId | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -199,6 +205,7 @@ export function useAiSegmentation(
     segmentationIdRef.current = segmentationId;
     setLabelmapOpacity(segmentationId, latest.current.opacity / 100);
     setHasMask(false);
+    setLvFunction(null);
     setPendingPrompts([]);
     setRunState({ status: "idle" });
 
@@ -243,6 +250,7 @@ export function useAiSegmentation(
     const abortController = new AbortController();
     abortRef.current = abortController;
     setRunState({ status: "running" });
+    setLvFunction(null);
 
     const request: SegmentationRequest = {
       modelId,
@@ -274,53 +282,61 @@ export function useAiSegmentation(
       return;
     }
 
-    setSegmentColor(
-      ctrl.viewportId,
-      segmentationId,
-      segmentIndex,
-      colorForSegment(segmentIndex)
-    );
-
-    let written = 0;
-    for (const maskFrame of result.value.frames) {
-      const target = imageIdForFrame(
-        activeSeries,
-        reference.sopInstanceUid,
-        maskFrame.frameIndex
+    try {
+      setSegmentColor(
+        ctrl.viewportId,
+        segmentationId,
+        segmentIndex,
+        colorForSegment(segmentIndex)
       );
 
-      if (!target) {
-        continue;
+      let written = 0;
+      for (const maskFrame of result.value.frames) {
+        const target = imageIdForFrame(
+          activeSeries,
+          reference.sopInstanceUid,
+          maskFrame.frameIndex
+        );
+
+        if (!target) {
+          continue;
+        }
+
+        const wrote = writeFrameMask({
+          segmentationId,
+          referencedImageId: target.imageId,
+          mask: maskFrame.mask,
+          width: maskFrame.width,
+          height: maskFrame.height,
+          segmentIndex
+        });
+
+        if (wrote.ok) {
+          written += 1;
+        }
       }
 
-      const wrote = writeFrameMask({
-        segmentationId,
-        referencedImageId: target.imageId,
-        mask: maskFrame.mask,
-        width: maskFrame.width,
-        height: maskFrame.height,
-        segmentIndex
+      setActiveSegment(ctrl.viewportId, segmentationId, segmentIndex);
+      setLabelmapOpacity(segmentationId, alpha / 100);
+      setHasMask(written > 0);
+      setRunState({
+        status: "done",
+        provenance: {
+          modelId: result.value.modelId,
+          modelVersion: result.value.modelVersion,
+          confidence: result.value.confidence,
+          inferenceMs: result.value.inferenceMs,
+          frameCount: written,
+          at: new Date().toISOString()
+        }
       });
-
-      if (wrote.ok) {
-        written += 1;
-      }
+    } catch (error) {
+      setRunState({
+        status: "error",
+        message:
+          error instanceof Error ? error.message : "Failed to render the mask."
+      });
     }
-
-    setActiveSegment(ctrl.viewportId, segmentationId, segmentIndex);
-    setLabelmapOpacity(segmentationId, alpha / 100);
-    setHasMask(true);
-    setRunState({
-      status: "done",
-      provenance: {
-        modelId: result.value.modelId,
-        modelVersion: result.value.modelVersion,
-        confidence: result.value.confidence,
-        inferenceMs: result.value.inferenceMs,
-        frameCount: written,
-        at: new Date().toISOString()
-      }
-    });
   }, []);
 
   const run = useCallback(() => {
@@ -487,6 +503,28 @@ export function useAiSegmentation(
     }
   }, []);
 
+  const computeFunction = useCallback(() => {
+    const { series: activeSeries, activeSegmentIndex: segmentIndex } =
+      latest.current;
+    const segmentationId = segmentationIdRef.current;
+
+    if (!activeSeries || !segmentationId) {
+      setLvFunction(null);
+      return;
+    }
+
+    const areas = measureSegmentAreas(
+      segmentationId,
+      activeSeries.imageIds,
+      segmentIndex
+    );
+    setLvFunction(computeLvFunction(areas));
+  }, []);
+
+  const jumpToFrame = useCallback((frameIndex: number) => {
+    void latest.current.controller?.setFrameIndex(frameIndex);
+  }, []);
+
   const exportSeg = useCallback(() => {
     const { series: activeSeries } = latest.current;
     const segmentationId = segmentationIdRef.current;
@@ -570,6 +608,9 @@ export function useAiSegmentation(
     opacity,
     canRun,
     hasMask,
+    lvFunction,
+    computeFunction,
+    jumpToFrame,
     refreshService,
     setSelectedModelId,
     setPromptMode,

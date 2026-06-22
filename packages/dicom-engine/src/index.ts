@@ -48,6 +48,7 @@ export {
 } from "./segmentation";
 export {
   createStackLabelmap,
+  measureSegmentAreas,
   readFrameLabelmap,
   removeLabelmap,
   setActiveSegment,
@@ -57,6 +58,7 @@ export {
   setSegmentVisibility,
   writeFrameMask,
   type CreateStackLabelmapInput,
+  type FrameArea,
   type FrameLabelmap,
   type LabelmapError,
   type WriteFrameMaskInput

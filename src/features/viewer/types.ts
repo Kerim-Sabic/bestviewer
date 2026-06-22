@@ -21,6 +21,7 @@ export interface LoadedSeries {
   readonly imageReferences: readonly LoadedImageReference[];
   readonly instanceCount: number;
   readonly loadedAt: string;
+  readonly modality: string | null;
   readonly recommendedFrameRate: number | null;
   readonly seriesInstanceUid: string;
   readonly source: "dicomweb" | "local";

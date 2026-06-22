@@ -11,6 +11,7 @@ import { err, getErrorMessage, ok, type Result } from "./result";
 import type { ImageReference } from "./segmentation";
 
 const SOP_INSTANCE_UID_TAG = "00080018";
+const MODALITY_TAG = "00080060";
 const RECOMMENDED_DISPLAY_FRAME_RATE_TAG = "00082144";
 const CINE_RATE_TAG = "00180040";
 const FRAME_TIME_TAG = "00181063";
@@ -50,6 +51,7 @@ export interface DicomWebSeries {
   readonly imageIds: ImageId[];
   readonly imageReferences: readonly ImageReference[];
   readonly instances: readonly DicomWebMetadata[];
+  readonly modality: string | null;
   readonly recommendedFrameRate: number | null;
 }
 
@@ -105,10 +107,13 @@ export async function fetchDicomWebSeries(
     }
   }
 
+  const firstInstance = parsed.data[0];
+
   return ok({
     imageIds,
     imageReferences,
     instances: parsed.data,
+    modality: firstInstance ? readString(firstInstance, MODALITY_TAG) ?? null : null,
     recommendedFrameRate: readRecommendedFrameRate(parsed.data)
   });
 }

@@ -524,7 +524,52 @@ button:disabled {
   gap: var(--space-3);
   padding: 0 var(--space-3);
   border-bottom: 1px solid var(--border-muted);
-  background: var(--surface-1);
+  background: linear-gradient(
+    180deg,
+    color-mix(in oklch, var(--surface-2) 60%, var(--surface-1)),
+    var(--surface-1)
+  );
+}
+
+.viewport-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-panel);
+  background: var(--surface-inset);
+}
+
+.viewport-tool {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.85rem;
+  height: 1.85rem;
+  border: 0;
+  border-radius: calc(var(--radius-panel) - 2px);
+  color: var(--text-secondary);
+  background: transparent;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+
+.viewport-tool:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: var(--surface-3);
+}
+
+.viewport-tool:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.viewport-tool[data-active="true"] {
+  color: var(--accent-strong);
+  background: color-mix(in oklch, var(--accent-soft) 50%, var(--surface-3));
 }
 
 .viewport-title {
@@ -1702,4 +1747,177 @@ button:disabled {
   color: var(--text-secondary);
   background: color-mix(in oklch, black 45%, transparent);
   font-size: var(--font-sm);
+}
+
+/* ============================================================
+   LV function (cardiac) panel
+   ============================================================ */
+
+.panel-tag {
+  margin-left: auto;
+  padding: 0.1rem 0.45rem;
+  border-radius: var(--radius-pill);
+  color: var(--accent-strong);
+  background: color-mix(in oklch, var(--accent-soft) 45%, transparent);
+  font-size: var(--font-xs);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.function-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+.function-hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+  line-height: 1.5;
+}
+
+.function-hint strong {
+  color: var(--text-secondary);
+}
+
+.function-metric {
+  display: grid;
+  gap: 0.1rem;
+  padding: var(--space-3);
+  border: 1px solid color-mix(in oklch, var(--accent) 28%, var(--border-muted));
+  border-radius: var(--radius-panel);
+  background:
+    radial-gradient(
+      120% 140% at 100% 0%,
+      color-mix(in oklch, var(--accent-soft) 55%, transparent),
+      transparent 60%
+    ),
+    var(--surface-inset);
+}
+
+.function-metric-label {
+  color: var(--text-secondary);
+  font-size: var(--font-xs);
+  letter-spacing: 0.02em;
+}
+
+.function-metric-value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.15rem;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 2.25rem;
+  font-weight: 650;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.function-metric-value small {
+  color: var(--accent-strong);
+  font-size: var(--font-md);
+  font-weight: 600;
+}
+
+.function-spark {
+  width: 100%;
+  height: 60px;
+  overflow: visible;
+}
+
+.function-spark-area {
+  opacity: 0.9;
+}
+
+.function-spark-fill-top {
+  stop-color: var(--accent);
+  stop-opacity: 0.35;
+}
+
+.function-spark-fill-bottom {
+  stop-color: var(--accent);
+  stop-opacity: 0;
+}
+
+.function-spark-line {
+  fill: none;
+  stroke: var(--accent-strong);
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.function-spark-ed {
+  fill: var(--success);
+  stroke: var(--surface-0);
+  stroke-width: 1.5;
+}
+
+.function-spark-es {
+  fill: var(--warning);
+  stroke: var(--surface-0);
+  stroke-width: 1.5;
+}
+
+.function-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.function-stat {
+  display: grid;
+  gap: 0.1rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-muted);
+  border-radius: var(--radius-panel);
+  background: color-mix(in oklch, var(--surface-1) 84%, black);
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out);
+}
+
+.function-stat:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+}
+
+.function-stat dt {
+  color: var(--text-muted);
+  font-size: var(--font-xs);
+}
+
+.function-stat dd {
+  margin: 0;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: var(--font-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.function-frame {
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.function-stat:first-child dd {
+  color: color-mix(in oklch, var(--success) 70%, var(--text-primary));
+}
+
+.function-stat:last-child dd {
+  color: color-mix(in oklch, var(--warning) 70%, var(--text-primary));
+}
+
+.function-disclaimer {
+  margin: 0;
+  color: var(--text-faint);
+  font-size: var(--font-xs);
+  line-height: 1.45;
 }

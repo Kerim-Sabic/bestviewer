@@ -19,6 +19,29 @@ import { err, getErrorMessage, ok, type Result } from "./result";
 
 const LABELMAP = ToolsEnums.SegmentationRepresentations.Labelmap;
 
+/**
+ * Direct source-frame -> labelmap-image map, populated at creation time.
+ * Cornerstone's own reference map is populated lazily as each frame renders, so
+ * it returns undefined for frames of a multi-frame loop the viewport has not
+ * navigated to yet — which breaks writing a propagated (whole-cycle) mask. This
+ * order-aligned map is timing-independent; we fall back to Cornerstone's lookup.
+ */
+const labelmapImageIdByFrame = new Map<string, Map<string, string>>();
+
+function resolveLabelmapImageId(
+  segmentationId: SegmentationId,
+  referencedImageId: ImageId
+): string | undefined {
+  const direct = labelmapImageIdByFrame.get(segmentationId)?.get(referencedImageId);
+  if (direct !== undefined) {
+    return direct;
+  }
+  return csSegmentation.getLabelmapImageIdsForImageId(
+    referencedImageId,
+    segmentationId
+  )?.[0];
+}
+
 export type LabelmapError =
   | { reason: "no_labelmap"; message: string }
   | { reason: "dimension_mismatch"; message: string }
@@ -51,6 +74,15 @@ export function createStackLabelmap(
       ...input.referencedImageIds
     ]);
     const labelmapImageIds = labelmapImages.map((image) => image.imageId);
+
+    const frameMap = new Map<string, string>();
+    input.referencedImageIds.forEach((referencedImageId, index) => {
+      const labelmapImage = labelmapImages[index];
+      if (labelmapImage) {
+        frameMap.set(referencedImageId, labelmapImage.imageId);
+      }
+    });
+    labelmapImageIdByFrame.set(input.segmentationId, frameMap);
 
     csSegmentation.addSegmentations([
       {
@@ -94,11 +126,10 @@ export interface WriteFrameMaskInput {
 export function writeFrameMask(
   input: WriteFrameMaskInput
 ): Result<void, LabelmapError> {
-  const labelmapImageIds = csSegmentation.getLabelmapImageIdsForImageId(
-    input.referencedImageId,
-    input.segmentationId
+  const labelmapImageId = resolveLabelmapImageId(
+    input.segmentationId,
+    input.referencedImageId
   );
-  const labelmapImageId = labelmapImageIds[0];
 
   if (labelmapImageId === undefined) {
     return err({
@@ -193,10 +224,7 @@ export function readFrameLabelmap(
   segmentationId: SegmentationId,
   referencedImageId: ImageId
 ): FrameLabelmap | null {
-  const labelmapImageId = csSegmentation.getLabelmapImageIdsForImageId(
-    referencedImageId,
-    segmentationId
-  )[0];
+  const labelmapImageId = resolveLabelmapImageId(segmentationId, referencedImageId);
 
   if (labelmapImageId === undefined) {
     return null;
@@ -228,6 +256,68 @@ export function readFrameLabelmap(
   }
 
   return { width, height, labels };
+}
+
+export interface FrameArea {
+  /** Index into the supplied referencedImageIds array (display order). */
+  readonly frameIndex: number;
+  readonly areaPixels: number;
+  /** Calibrated area; null when PixelSpacing is absent (never fabricated). */
+  readonly areaMm2: number | null;
+}
+
+/**
+ * Measure the area of one segment across frames — the basis for cardiac
+ * function (e.g. LV Fractional Area Change across the cardiac cycle). Area is
+ * the segment's pixel count, converted to mm² only when the source frame is
+ * calibrated (PixelSpacing present); otherwise mm² is null and the caller
+ * reports pixels, honestly. Frames without this segment are omitted.
+ */
+export function measureSegmentAreas(
+  segmentationId: SegmentationId,
+  referencedImageIds: readonly ImageId[],
+  segmentIndex: number
+): readonly FrameArea[] {
+  let mm2PerPixel: number | null = null;
+  for (const imageId of referencedImageIds) {
+    const image = cache.getImage(imageId);
+    if (image && image.rowPixelSpacing > 0 && image.columnPixelSpacing > 0) {
+      mm2PerPixel = image.rowPixelSpacing * image.columnPixelSpacing;
+      break;
+    }
+  }
+
+  const areas: FrameArea[] = [];
+  for (let index = 0; index < referencedImageIds.length; index += 1) {
+    const imageId = referencedImageIds[index];
+    if (imageId === undefined) {
+      continue;
+    }
+
+    const labelmap = readFrameLabelmap(segmentationId, imageId);
+    if (!labelmap) {
+      continue;
+    }
+
+    let count = 0;
+    for (let pixel = 0; pixel < labelmap.labels.length; pixel += 1) {
+      if (labelmap.labels[pixel] === segmentIndex) {
+        count += 1;
+      }
+    }
+
+    if (count === 0) {
+      continue;
+    }
+
+    areas.push({
+      frameIndex: index,
+      areaPixels: count,
+      areaMm2: mm2PerPixel !== null ? count * mm2PerPixel : null
+    });
+  }
+
+  return areas;
 }
 
 /** Set the active segmentation + segment that subsequent writes target. */
@@ -299,5 +389,6 @@ export function setSegmentVisibility(
 
 /** Remove a segmentation entirely (representation + data). */
 export function removeLabelmap(segmentationId: SegmentationId): void {
+  labelmapImageIdByFrame.delete(segmentationId);
   csSegmentation.removeSegmentation(segmentationId);
 }

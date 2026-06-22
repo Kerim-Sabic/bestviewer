@@ -10,6 +10,7 @@ import { Activity, BadgeInfo, Box, Brain, Layers, ShieldCheck } from "lucide-rea
 import { useCallback, useEffect, useState } from "react";
 
 import { AiTrackingPanel } from "./ai-tracking-panel";
+import { CardiacFunctionPanel } from "./cardiac-function-panel";
 import { DicomStackViewport } from "./dicom-stack-viewport";
 import { MeasurementPanel } from "./measurement-panel";
 import { MprViewport } from "./mpr-viewport";
@@ -218,6 +219,13 @@ export function ReadingRoomShell() {
           />
 
           <AiTrackingPanel ai={ai} />
+
+          <CardiacFunctionPanel
+            hasMask={ai.hasMask}
+            lvFunction={ai.lvFunction}
+            onCompute={ai.computeFunction}
+            onJump={ai.jumpToFrame}
+          />
 
           <VlmReportPanel
             hasMask={ai.hasMask}

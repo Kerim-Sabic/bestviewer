@@ -42,6 +42,7 @@ export async function loadDicomWebSeries(
         imageReferences: toLoadedImageReferences(result.value),
         instanceCount: result.value.instances.length,
         loadedAt: new Date().toISOString(),
+        modality: result.value.modality,
         recommendedFrameRate: result.value.recommendedFrameRate,
         seriesInstanceUid,
         source: "dicomweb",

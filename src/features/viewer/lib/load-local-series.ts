@@ -29,6 +29,7 @@ export async function loadLocalSeries(
       imageReferences: [],
       instanceCount: series.instanceCount,
       loadedAt: new Date().toISOString(),
+      modality: series.modality,
       recommendedFrameRate: series.recommendedFrameRate,
       seriesInstanceUid: series.seriesInstanceUid ?? series.description ?? "Local series",
       source: "local",
