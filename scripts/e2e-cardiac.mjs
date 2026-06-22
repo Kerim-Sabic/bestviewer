@@ -36,7 +36,7 @@ try {
 
   // Enable propagation (track across the cardiac cycle).
   await page
-    .locator(".checkbox-row", { hasText: "Propagate" })
+    .locator(".checkbox-row", { hasText: "Track across cine" })
     .locator("input")
     .check();
 

@@ -17,7 +17,7 @@ import torch
 
 from backends.base import SegmentationBackend
 from contract import FrameMask, SegmentationRequest, SegmentationResponse
-from dicom_source import fetch_instance, instance_frames_rgb
+from dicom_source import get_single_frame_rgb
 from rle import encode_mask_rle
 
 
@@ -60,23 +60,17 @@ class NnInteractiveBackend(SegmentationBackend):
         assert session is not None
 
         started = time.perf_counter()
-        dataset = fetch_instance(
+        frame_index = max(request.image.frameIndex, 0)
+        rgb = get_single_frame_rgb(
             request.image.studyInstanceUid,
             request.image.seriesInstanceUid,
             request.image.sopInstanceUid,
+            frame_index,
         )
-        frames = instance_frames_rgb(dataset)
-        if not frames:
-            raise ValueError("No frames decoded from the referenced instance.")
-
-        frame_index = request.image.frameIndex
-        if frame_index < 0 or frame_index >= len(frames):
-            frame_index = 0
 
         # nnInteractive works on (C, X, Y, Z). A single grayscale slice is a
         # degenerate volume (1, H, W, 1); coordinates are (X=row, Y=col, Z=0)
         # while viewer prompts are image-pixel (x=col, y=row).
-        rgb = frames[frame_index]
         gray = rgb[..., 0].astype(np.float32)
         height, width = gray.shape
         image = gray[np.newaxis, :, :, np.newaxis]  # (1, H, W, 1)

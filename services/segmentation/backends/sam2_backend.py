@@ -19,7 +19,7 @@ from PIL import Image
 
 from backends.base import SegmentationBackend
 from contract import FrameMask, Prompt, SegmentationRequest, SegmentationResponse
-from dicom_source import fetch_instance, instance_frames_rgb
+from dicom_source import get_instance_frames, get_single_frame_rgb
 from rle import encode_mask_rle
 
 
@@ -60,6 +60,7 @@ class Sam2Backend(SegmentationBackend):
         if self._device == "cuda":
             torch.backends.cuda.matmul.allow_tf32 = True
             torch.backends.cudnn.allow_tf32 = True
+            torch.backends.cudnn.benchmark = True
 
         model = build_sam2(self._config_file, self._checkpoint, device=self._device)
         self._image_predictor = SAM2ImagePredictor(model)
@@ -67,34 +68,56 @@ class Sam2Backend(SegmentationBackend):
             self._config_file, self._checkpoint, device=self._device
         )
         self._loaded = True
+        self._warmup()
+
+    def _warmup(self) -> None:
+        """Run one tiny inference so CUDA kernels are compiled/autotuned before
+        the first real click pays for it."""
+        try:
+            dummy = np.zeros((256, 256, 3), dtype=np.uint8)
+            with torch.inference_mode(), self._autocast():
+                self._image_predictor.set_image(dummy)
+                self._image_predictor.predict(
+                    point_coords=np.array([[128, 128]], dtype=np.float32),
+                    point_labels=np.array([1], dtype=np.int32),
+                    multimask_output=False,
+                )
+        except Exception:  # noqa: BLE001 — warmup is best-effort
+            pass
 
     def segment(self, request: SegmentationRequest) -> SegmentationResponse:
         if not self._loaded:
             self.load()
 
         started = time.perf_counter()
-        dataset = fetch_instance(
-            request.image.studyInstanceUid,
-            request.image.seriesInstanceUid,
-            request.image.sopInstanceUid,
-        )
-        frames = instance_frames_rgb(dataset)
-        if not frames:
-            raise ValueError("No frames decoded from the referenced instance.")
-
-        frame_index = request.image.frameIndex
-        if frame_index < 0 or frame_index >= len(frames):
-            frame_index = 0
-
+        study = request.image.studyInstanceUid
+        series = request.image.seriesInstanceUid
+        sop = request.image.sopInstanceUid
         points, labels, box = _prompts_to_arrays(request.prompts)
 
-        if request.propagate and len(frames) > 1:
-            out_frames, confidence = self._segment_video(
-                frames, frame_index, points, labels, box
-            )
+        if request.propagate:
+            # Whole-loop tracking: decode every frame (cached) and run the video
+            # predictor's streaming memory across the cardiac cycle.
+            frames = get_instance_frames(study, series, sop)
+            if not frames:
+                raise ValueError("No frames decoded from the referenced instance.")
+            frame_index = request.image.frameIndex
+            if frame_index < 0 or frame_index >= len(frames):
+                frame_index = 0
+            if len(frames) > 1:
+                out_frames, confidence = self._segment_video(
+                    frames, frame_index, points, labels, box
+                )
+            else:
+                out_frames, confidence = self._segment_single(
+                    frames[0], frame_index, points, labels, box
+                )
         else:
+            # Fast path: fetch and encode only the displayed frame.
+            frame_index = max(request.image.frameIndex, 0)
+            frame = get_single_frame_rgb(study, series, sop, frame_index)
             out_frames, confidence = self._segment_single(
-                frames[frame_index], frame_index, points, labels, box
+                frame, frame_index, points, labels, box
             )
 
         return SegmentationResponse(

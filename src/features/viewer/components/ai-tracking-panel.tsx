@@ -175,7 +175,7 @@ export function AiTrackingPanel({ ai }: AiTrackingPanelProps) {
               onChange={(event) => ai.setPropagate(event.target.checked)}
               type="checkbox"
             />
-            <span>Propagate (track across frames)</span>
+            <span>Track across cine (slower)</span>
           </label>
           <label className="checkbox-row">
             <input

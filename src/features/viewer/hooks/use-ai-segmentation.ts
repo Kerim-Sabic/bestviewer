@@ -115,10 +115,10 @@ export function useAiSegmentation(
     { index: 1, label: "Segment 1", color: colorForSegment(1), visible: true }
   ]);
   const [activeSegmentIndex, setActiveSegmentIndex] = useState(1);
-  // Default ON: one prompt should segment the whole cine and move with playback
-  // (temporal tracking) — the echo-default. The service no-ops it for single
-  // frames, so it is safe to leave enabled everywhere.
-  const [propagate, setPropagate] = useState(true);
+  // Default OFF for instant single-frame feedback. Propagating across a long
+  // echo loop (e.g. 96 frames) is a deliberate, heavier action the user opts
+  // into via "Track across cine", so a click never stalls on a whole-loop run.
+  const [propagate, setPropagate] = useState(false);
   const [liveMode, setLiveMode] = useState(false);
   const [opacity, setOpacityState] = useState(45);
   const [runState, setRunState] = useState<AiRunState>({ status: "idle" });
