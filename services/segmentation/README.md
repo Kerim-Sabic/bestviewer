@@ -44,29 +44,45 @@ Prompts are in **image-pixel** coordinates (the viewer maps mouse → image
 pixels through the frame geometry, not canvas pixels). The viewer proxies this
 through `POST /api/segment`, which forwards to `SEGMENTATION_SERVICE_URL`.
 
-## Wiring a model
+## Models
 
-`load_backend()` returns a stub; `/segment` returns **501** until you implement
-one. A real backend should be **model-agnostic-friendly** (MedSAM2 by default;
-SAM2 / nnInteractive / SAM3 are drop-ins behind the same contract):
+A pluggable backend registry (`backends/`) serves a model menu behind one
+contract. Shipped:
 
-1. Load weights onto CUDA once at startup; set `model_id` / `model_version`,
-   make `ready()` return `True`.
-2. Per request: pull the referenced frame(s) from PACS, run the model with the
-   prompts, and for `propagate=True` use the model's temporal memory to extend
-   the mask across the loop.
-3. RLE-encode each mask and return it. Never fabricate anatomy.
+- **MedSAM2** (`medsam2`) — SAM2.1 fine-tuned on medical data; the default
+  medical generalist. Weights `MedSAM2_latest.pt` (Hugging Face `wanglab/MedSAM2`).
+- **SAM2.1** (`sam2.1`) — Meta's general promptable model. Weights
+  `sam2.1_hiera_base_plus.pt`.
+- **nnInteractive** (`nninteractive`) — optional (DKFZ); enable with
+  `NNINTERACTIVE_MODEL_DIR` (run in its own venv to avoid dep conflicts).
 
-## Run
+Both SAM-family backends support **single-frame** prompts (image predictor) and
+**temporal propagation** across a multi-frame loop (SAM2 video predictor) for
+`propagate=true`. Each pulls the referenced instance from Orthanc via WADO-URI,
+decodes pixels (pydicom + JPEG/JPEG2000 codecs), runs the prompts, and returns
+RLE masks. `GET /models` lists every backend with a `ready` flag.
+
+## Endpoints
+
+- `GET /health` · `GET /ready` · `GET /models`
+- `POST /segment` — promptable segmentation (+ propagation)
+- `POST /seg` — build a DICOM SEG (highdicom) from a labelmap and STOW to Orthanc
+
+## Run (GPU host — Blackwell / RTX 50-series needs CUDA 12.8 wheels)
 
 ```bash
-# build + run on a GPU host (needs the NVIDIA container runtime)
-docker build -t horalix-seg services/segmentation
-docker run --gpus all -p 8000:8000 horalix-seg
-
-# point the viewer at it
-SEGMENTATION_SERVICE_URL=http://localhost:8000 npm run dev -- --port 3001
+cd services/segmentation
+python -m venv .venv-sam
+.venv-sam/Scripts/python -m pip install -U pip
+.venv-sam/Scripts/python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+SAM2_BUILD_CUDA=0 .venv-sam/Scripts/python -m pip install "git+https://github.com/facebookresearch/sam2.git"
+.venv-sam/Scripts/python -m pip install -r requirements.txt
+.venv-sam/Scripts/python download_weights.py          # SAM2.1 + MedSAM2 into weights/
+ORTHANC_URL=http://localhost:8042 .venv-sam/Scripts/python -m uvicorn app:app --host 0.0.0.0 --port 8000
 ```
 
-`GET /health` (liveness) and `GET /ready` (model loaded) back the container
-health checks.
+Then point the viewer at it (`.env.local`): `SEGMENTATION_SERVICE_URL=http://localhost:8000`.
+A Docker build (`Dockerfile`, CUDA base) is provided for on-prem deployment.
+
+`ORTHANC_URL` (default `http://localhost:8042`) is the Orthanc base the service
+pulls frames from (WADO-URI) and STOWs SEGs to (DICOMweb).

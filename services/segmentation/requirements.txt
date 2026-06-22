@@ -1,15 +1,36 @@
-# API server (CPU-only deps; pin exact versions for reproducible builds)
+# Horalix on-prem GPU segmentation service.
+#
+# GPU note (Blackwell / RTX 50-series, sm_120): install torch from the CUDA 12.8
+# wheel index FIRST, then the rest:
+#
+#   python -m venv .venv-sam
+#   .venv-sam/Scripts/python -m pip install -U pip
+#   .venv-sam/Scripts/python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
+#   SAM2_BUILD_CUDA=0 .venv-sam/Scripts/python -m pip install "git+https://github.com/facebookresearch/sam2.git"
+#   .venv-sam/Scripts/python -m pip install -r requirements.txt
+#   .venv-sam/Scripts/python download_weights.py
+#   ORTHANC_URL=http://localhost:8042 .venv-sam/Scripts/python -m uvicorn app:app --host 0.0.0.0 --port 8000
+
+# API server
 fastapi==0.115.6
 uvicorn[standard]==0.32.1
 pydantic==2.10.4
 
-# --- Model backend (GPU) ---------------------------------------------------
-# Add these pinned to YOUR CUDA build when you wire load_backend():
-#   torch==2.4.1            # match the CUDA in the Dockerfile base image
-#   torchvision==0.19.1
-#   numpy
-#   pydicom                 # to pull frames from PACS / decode pixel data
-# plus the chosen model, e.g. one of:
-#   "sam2 @ git+https://github.com/facebookresearch/sam2.git"
-#   MedSAM2 (per its repo instructions)
-#   nninteractive (per its repo instructions)
+# DICOM I/O + pixel decode (JPEG / JPEG2000 from PACS)
+pydicom>=3.0
+pylibjpeg
+pylibjpeg-libjpeg
+pylibjpeg-openjpeg
+pillow
+numpy
+requests
+huggingface_hub
+
+# DICOM SEG export
+highdicom>=0.23
+
+# Model backend (installed via the cu128 steps above; listed for reference):
+#   torch torchvision           (CUDA 12.8 wheels, sm_120)
+#   sam2  (git+https://github.com/facebookresearch/sam2.git)  -> SAM2.1 + MedSAM2
+# Optional nnInteractive backend (run in its own venv to avoid dep conflicts):
+#   nninteractive               (set NNINTERACTIVE_MODEL_DIR to enable)

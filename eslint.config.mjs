@@ -15,7 +15,13 @@ const eslintConfig = [
       ".next/**",
       "next-env.d.ts",
       "node_modules/**",
-      "packages/dicom-engine/dist/**"
+      "packages/dicom-engine/dist/**",
+      "**/.venv*/**",
+      "services/**/weights/**",
+      "services/**/model/**",
+      "services/vlm/models/**",
+      "**/__pycache__/**",
+      "scripts/**"
     ]
   },
   ...compat.extends("next/core-web-vitals", "next/typescript")

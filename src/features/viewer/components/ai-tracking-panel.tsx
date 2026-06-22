@@ -1,98 +1,33 @@
 "use client";
 
-import type { StackFrameState } from "@horalix/dicom-engine";
 import {
   AlertTriangle,
   BrainCircuit,
   CheckCircle2,
   Crosshair,
+  Eye,
+  EyeOff,
+  Loader2,
+  Plus,
   RefreshCw,
   ShieldCheck,
   Sparkles,
-  SquareDashedMousePointer
+  SquareDashedMousePointer,
+  Upload,
+  X
 } from "lucide-react";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 
-import { fetchSegmentationServiceStatus } from "../lib/segmentation-service-client";
-import type { SegmentationServiceStatus } from "../lib/segmentation-service-schema";
-import type { LoadedImageReference, LoadedSeries } from "../types";
+import { rgbaToCss } from "../lib/ai-segmentation";
+import type { UseAiSegmentationReturn } from "../hooks/use-ai-segmentation";
 
 interface AiTrackingPanelProps {
-  readonly frameState: StackFrameState;
-  readonly series: LoadedSeries | null;
+  readonly ai: UseAiSegmentationReturn;
 }
 
-type ServiceState =
-  | { readonly status: "checking" }
-  | { readonly status: "ready"; readonly value: SegmentationServiceStatus }
-  | { readonly message: string; readonly status: "unavailable" };
-
-type PromptTool = "point" | "box";
-type PointPolarity = "include" | "exclude";
-
-type AiWorkflowState =
-  | { readonly status: "unavailable"; readonly message: string }
-  | { readonly status: "idle" }
-  | { readonly status: "ready"; readonly image: LoadedImageReference }
-  | { readonly status: "needs_prompt"; readonly image: LoadedImageReference };
-
-export function AiTrackingPanel({ frameState, series }: AiTrackingPanelProps) {
-  const [serviceState, setServiceState] = useState<ServiceState>({
-    status: "checking"
-  });
-  const [promptTool, setPromptTool] = useState<PromptTool>("point");
-  const [pointPolarity, setPointPolarity] = useState<PointPolarity>("include");
-  const [segmentIndex, setSegmentIndex] = useState(1);
-  const [segmentLabel, setSegmentLabel] = useState("AI segment");
-  const [propagate, setPropagate] = useState(false);
-  const [opacity, setOpacity] = useState(45);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    void refreshServiceState(controller.signal);
-
-    return () => {
-      controller.abort();
-    };
-  }, []);
-
-  const activeImageReference = useMemo(
-    () => getActiveImageReference(series, frameState),
-    [frameState, series]
-  );
-  const workflow = getWorkflowState({
-    activeImageReference,
-    serviceState,
-    series
-  });
-  const serviceModels =
-    serviceState.status === "ready" ? serviceState.value.models : [];
-  const selectedModel = serviceModels[0] ?? null;
-  const promptCount = 0;
-  const canRun = workflow.status === "needs_prompt" && promptCount > 0;
-
-  async function refreshServiceState(signal: AbortSignal) {
-    setServiceState({ status: "checking" });
-
-    const result = await fetchSegmentationServiceStatus(signal);
-
-    if (signal.aborted) {
-      return;
-    }
-
-    if (!result.ok) {
-      setServiceState({ message: result.message, status: "unavailable" });
-      return;
-    }
-
-    if (result.value.status === "ready") {
-      setServiceState({ status: "ready", value: result.value });
-      return;
-    }
-
-    setServiceState({ message: result.value.message, status: "unavailable" });
-  }
+export function AiTrackingPanel({ ai }: AiTrackingPanelProps) {
+  const isPoint =
+    ai.promptMode === "point-include" || ai.promptMode === "point-exclude";
 
   return (
     <section className="viewer-panel ai-panel" aria-labelledby="ai-tracking-title">
@@ -100,15 +35,12 @@ export function AiTrackingPanel({ frameState, series }: AiTrackingPanelProps) {
         <span className="panel-icon" aria-hidden="true">
           <BrainCircuit size={16} />
         </span>
-        <h2 id="ai-tracking-title">AI tracking</h2>
+        <h2 id="ai-tracking-title">AI segmentation</h2>
         <button
           aria-label="Refresh AI service"
           className="icon-command"
-          disabled={serviceState.status === "checking"}
-          onClick={() => {
-            const controller = new AbortController();
-            void refreshServiceState(controller.signal);
-          }}
+          disabled={ai.serviceState.status === "checking"}
+          onClick={ai.refreshService}
           type="button"
         >
           <RefreshCw size={15} />
@@ -116,120 +48,209 @@ export function AiTrackingPanel({ frameState, series }: AiTrackingPanelProps) {
       </div>
 
       <div className="ai-panel-body">
-        <div className="ai-status-row" data-status={workflow.status}>
-          <span aria-hidden="true">{getWorkflowIcon(workflow)}</span>
-          <strong>{getWorkflowLabel(workflow)}</strong>
+        <div className="ai-status-row" data-status={ai.workflow.status}>
+          <span aria-hidden="true">{workflowIcon(ai)}</span>
+          <strong>{workflowLabel(ai)}</strong>
         </div>
 
         <label className="field">
           <span>Model</span>
-          <select disabled={serviceModels.length === 0}>
-            {selectedModel ? (
-              <option value={selectedModel.id}>
-                {formatModelLabel(selectedModel.id, selectedModel.version)}
-              </option>
+          <select
+            disabled={ai.models.length === 0}
+            onChange={(event) => ai.setSelectedModelId(event.target.value)}
+            value={ai.selectedModelId ?? ""}
+          >
+            {ai.models.length === 0 ? (
+              <option value="">No configured model</option>
             ) : (
-              <option>No configured model</option>
+              ai.models.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.version ? `${model.label} · ${model.version}` : model.label}
+                </option>
+              ))
             )}
           </select>
         </label>
 
-        <div className="ai-control-grid">
-          <label className="field">
-            <span>Segment</span>
-            <input
-              min={1}
-              onChange={(event) => setSegmentIndex(readSegmentIndex(event.target.value))}
-              type="number"
-              value={segmentIndex}
-            />
-          </label>
-          <label className="field">
-            <span>Label</span>
-            <input
-              onChange={(event) => setSegmentLabel(event.target.value)}
-              type="text"
-              value={segmentLabel}
-            />
-          </label>
-        </div>
-
         <div className="segmented-control" aria-label="Prompt tool">
           <button
-            data-active={promptTool === "point"}
-            onClick={() => setPromptTool("point")}
+            data-active={isPoint}
+            onClick={() => ai.setPromptMode("point-include")}
             type="button"
           >
             <Crosshair size={14} />
             <span>Point</span>
           </button>
           <button
-            data-active={promptTool === "box"}
-            onClick={() => setPromptTool("box")}
+            data-active={ai.promptMode === "box"}
+            onClick={() => ai.setPromptMode("box")}
             type="button"
           >
             <SquareDashedMousePointer size={14} />
             <span>Box</span>
           </button>
+          <button
+            data-active={ai.promptMode === "off"}
+            onClick={() => ai.setPromptMode("off")}
+            type="button"
+          >
+            <span>Off</span>
+          </button>
         </div>
 
         <div className="segmented-control" aria-label="Point polarity">
           <button
-            data-active={pointPolarity === "include"}
-            disabled={promptTool !== "point"}
-            onClick={() => setPointPolarity("include")}
+            data-active={ai.promptMode === "point-include"}
+            disabled={!isPoint}
+            onClick={() => ai.setPromptMode("point-include")}
             type="button"
           >
             Include
           </button>
           <button
-            data-active={pointPolarity === "exclude"}
-            disabled={promptTool !== "point"}
-            onClick={() => setPointPolarity("exclude")}
+            data-active={ai.promptMode === "point-exclude"}
+            disabled={!isPoint}
+            onClick={() => ai.setPromptMode("point-exclude")}
             type="button"
           >
             Exclude
           </button>
         </div>
 
-        <label className="checkbox-row">
-          <input
-            checked={propagate}
-            onChange={(event) => setPropagate(event.target.checked)}
-            type="checkbox"
-          />
-          <span>Propagate</span>
-        </label>
+        <div className="ai-segment-block">
+          <div className="ai-segment-head">
+            <span>Segments</span>
+            <button className="text-command" onClick={ai.addSegment} type="button">
+              <Plus size={13} />
+              <span>Add</span>
+            </button>
+          </div>
+          <ul className="ai-segment-list">
+            {ai.segments.map((segment) => (
+              <li
+                key={segment.index}
+                className="ai-segment-row"
+                data-active={segment.index === ai.activeSegmentIndex}
+              >
+                <button
+                  className="ai-segment-select"
+                  onClick={() => ai.setActiveSegmentIndex(segment.index)}
+                  type="button"
+                >
+                  <span
+                    className="ai-segment-swatch"
+                    style={{ backgroundColor: rgbaToCss(segment.color) }}
+                    aria-hidden="true"
+                  />
+                  <input
+                    aria-label={`Segment ${segment.index} label`}
+                    className="ai-segment-label"
+                    onChange={(event) =>
+                      ai.renameSegment(segment.index, event.target.value)
+                    }
+                    onClick={(event) => event.stopPropagation()}
+                    type="text"
+                    value={segment.label}
+                  />
+                </button>
+                <button
+                  aria-label={
+                    segment.visible ? "Hide segment" : "Show segment"
+                  }
+                  className="icon-command"
+                  onClick={() => ai.toggleSegmentVisibility(segment.index)}
+                  type="button"
+                >
+                  {segment.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="ai-toggle-grid">
+          <label className="checkbox-row">
+            <input
+              checked={ai.propagate}
+              onChange={(event) => ai.setPropagate(event.target.checked)}
+              type="checkbox"
+            />
+            <span>Propagate (track across frames)</span>
+          </label>
+          <label className="checkbox-row">
+            <input
+              checked={ai.liveMode}
+              onChange={(event) => ai.setLiveMode(event.target.checked)}
+              type="checkbox"
+            />
+            <span>Live mode</span>
+          </label>
+        </div>
 
         <label className="field">
-          <span>Opacity</span>
+          <span>Mask opacity · {ai.opacity}%</span>
           <input
             max={100}
             min={0}
-            onChange={(event) => setOpacity(readOpacity(event.target.value))}
+            onChange={(event) => ai.setOpacity(Number(event.target.value))}
             type="range"
-            value={opacity}
+            value={ai.opacity}
           />
         </label>
 
         <div className="ai-action-row">
-          <button className="secondary-command" disabled={!canRun} type="button">
-            <Sparkles size={14} />
-            <span>Run</span>
+          <button
+            className="primary-command"
+            disabled={!ai.canRun}
+            onClick={ai.run}
+            type="button"
+          >
+            {ai.runState.status === "running" ? (
+              <Loader2 size={14} className="spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
+            <span>{ai.runState.status === "running" ? "Running" : "Run"}</span>
           </button>
-          <button className="secondary-command" disabled type="button">
+          <button
+            className="secondary-command"
+            disabled={ai.runState.status !== "running"}
+            onClick={ai.cancel}
+            type="button"
+          >
             Cancel
           </button>
+          <button
+            aria-label="Clear prompts"
+            className="icon-command"
+            disabled={ai.pendingPrompts.length === 0}
+            onClick={ai.clearPrompts}
+            type="button"
+          >
+            <X size={15} />
+          </button>
         </div>
+
+        {ai.runState.status === "error" ? (
+          <p className="ai-inline-error">{ai.runState.message}</p>
+        ) : null}
 
         <dl className="metadata-list ai-provenance">
           <div>
             <dt>Prompts</dt>
-            <dd>{promptCount}</dd>
+            <dd>{ai.pendingPrompts.length}</dd>
           </div>
           <div>
-            <dt>Frame</dt>
-            <dd>{formatFrameIdentity(activeImageReference)}</dd>
+            <dt>Confidence</dt>
+            <dd>{confidenceText(ai)}</dd>
+          </div>
+          <div>
+            <dt>Latency</dt>
+            <dd>{latencyText(ai)}</dd>
+          </div>
+          <div>
+            <dt>Model</dt>
+            <dd>{modelText(ai)}</dd>
           </div>
           <div>
             <dt>Output</dt>
@@ -239,126 +260,75 @@ export function AiTrackingPanel({ frameState, series }: AiTrackingPanelProps) {
             <dt>Use</dt>
             <dd>Research only</dd>
           </div>
-          <div>
-            <dt>Edit</dt>
-            <dd>Clinician editable</dd>
-          </div>
         </dl>
+
+        <button
+          className="secondary-command ai-export"
+          disabled={!ai.hasMask || ai.exportState.status === "exporting"}
+          onClick={ai.exportSeg}
+          type="button"
+        >
+          {ai.exportState.status === "exporting" ? (
+            <Loader2 size={14} className="spin" />
+          ) : (
+            <Upload size={14} />
+          )}
+          <span>Export DICOM SEG → Orthanc</span>
+        </button>
+        {ai.exportState.status === "done" ? (
+          <p className="ai-inline-ok">{ai.exportState.message}</p>
+        ) : null}
+        {ai.exportState.status === "error" ? (
+          <p className="ai-inline-error">{ai.exportState.message}</p>
+        ) : null}
       </div>
     </section>
   );
 }
 
-function getWorkflowState(input: {
-  readonly activeImageReference: LoadedImageReference | null;
-  readonly series: LoadedSeries | null;
-  readonly serviceState: ServiceState;
-}): AiWorkflowState {
-  if (input.serviceState.status === "checking") {
-    return { message: "Checking segmentation service.", status: "unavailable" };
-  }
-
-  if (input.serviceState.status === "unavailable") {
-    return { message: input.serviceState.message, status: "unavailable" };
-  }
-
-  if (!input.series) {
-    return { status: "idle" };
-  }
-
-  if (input.series.source === "local") {
-    return {
-      message: "Push local files to Orthanc before inference.",
-      status: "unavailable"
-    };
-  }
-
-  if (!input.activeImageReference) {
-    return {
-      message: "No PACS-backed frame is active.",
-      status: "unavailable"
-    };
-  }
-
-  return { image: input.activeImageReference, status: "needs_prompt" };
-}
-
-function getWorkflowIcon(workflow: AiWorkflowState): ReactNode {
-  switch (workflow.status) {
+function workflowIcon(ai: AiTrackingPanelProps["ai"]): ReactNode {
+  switch (ai.workflow.status) {
     case "unavailable":
       return <AlertTriangle size={15} />;
     case "idle":
       return <ShieldCheck size={15} />;
-    case "ready":
     case "needs_prompt":
+    case "ready":
       return <CheckCircle2 size={15} />;
   }
 }
 
-function getWorkflowLabel(workflow: AiWorkflowState): string {
-  switch (workflow.status) {
+function workflowLabel(ai: AiTrackingPanelProps["ai"]): string {
+  switch (ai.workflow.status) {
     case "unavailable":
-      return workflow.message;
+      return ai.workflow.message;
     case "idle":
       return "Load a PACS-backed series";
-    case "ready":
-      return "Ready";
     case "needs_prompt":
-      return "Waiting for image-space prompts";
+      return "Click the image to add prompts";
+    case "ready":
+      return `${ai.pendingPrompts.length} prompt(s) ready — Run`;
   }
 }
 
-function getActiveImageReference(
-  series: LoadedSeries | null,
-  frameState: StackFrameState
-): LoadedImageReference | null {
-  if (!series || series.imageReferences.length === 0) {
-    return null;
+function confidenceText(ai: AiTrackingPanelProps["ai"]): string {
+  if (ai.runState.status !== "done" || ai.runState.provenance.confidence === null) {
+    return "—";
   }
-
-  const byImageId = series.imageReferences.find(
-    (reference) => reference.imageId === frameState.currentImageId
-  );
-
-  if (byImageId) {
-    return byImageId;
-  }
-
-  return series.imageReferences[frameState.currentIndex] ?? null;
+  return `${Math.round(ai.runState.provenance.confidence * 100)}%`;
 }
 
-function formatFrameIdentity(reference: LoadedImageReference | null): string {
-  if (!reference) {
-    return "None";
+function latencyText(ai: AiTrackingPanelProps["ai"]): string {
+  if (ai.runState.status !== "done") {
+    return "—";
   }
-
-  return `${reference.sopInstanceUid} / ${reference.frameIndex}`;
+  return `${Math.round(ai.runState.provenance.inferenceMs)} ms`;
 }
 
-function formatModelLabel(id: string, version: string | null): string {
-  if (!version) {
-    return id;
+function modelText(ai: AiTrackingPanelProps["ai"]): string {
+  if (ai.runState.status !== "done") {
+    return ai.selectedModelId ?? "—";
   }
-
-  return `${id} ${version}`;
-}
-
-function readSegmentIndex(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-
-  if (!Number.isFinite(parsed) || parsed < 1) {
-    return 1;
-  }
-
-  return parsed;
-}
-
-function readOpacity(value: string): number {
-  const parsed = Number.parseInt(value, 10);
-
-  if (!Number.isFinite(parsed)) {
-    return 45;
-  }
-
-  return Math.min(Math.max(parsed, 0), 100);
+  const { modelId, modelVersion } = ai.runState.provenance;
+  return modelVersion ? `${modelId} · ${modelVersion}` : modelId;
 }

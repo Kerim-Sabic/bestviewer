@@ -34,6 +34,11 @@ import {
 } from "./measurement";
 import { ensureCornerstoneRuntime, type CornerstoneRuntimeOptions } from "./runtime";
 import { err, getErrorMessage, ok, type Result } from "./result";
+import {
+  canvasCornersToImageBox,
+  canvasToImagePoint,
+  type ImagePoint
+} from "./segmentation-prompts";
 import { toVoiRange, type WindowLevelPreset } from "./window-level";
 
 export type ViewportError =
@@ -83,6 +88,18 @@ export interface StackViewportController {
   ) => Promise<Result<StackFrameState, ViewportError>>;
   subscribeToFrameChange: (listener: (state: StackFrameState) => void) => () => void;
   subscribeToMeasurements: (listener: () => void) => () => void;
+  /** Map a canvas point (CSS px) to image-pixel coords on the current frame. */
+  toImagePoint: (canvasPoint: readonly [number, number]) => ImagePoint | null;
+  /** Map two canvas corners to an image-pixel box on the current frame. */
+  toImageBox: (
+    start: readonly [number, number],
+    end: readonly [number, number]
+  ) => {
+    readonly x: number;
+    readonly y: number;
+    readonly width: number;
+    readonly height: number;
+  } | null;
 }
 
 export function createStackViewport(
@@ -217,7 +234,9 @@ export function createStackViewport(
       return () => {
         measurementListeners.delete(listener);
       };
-    }
+    },
+    toImagePoint: (canvasPoint) => canvasToImagePoint(viewport, canvasPoint),
+    toImageBox: (start, end) => canvasCornersToImageBox(viewport, start, end)
   });
 }
 

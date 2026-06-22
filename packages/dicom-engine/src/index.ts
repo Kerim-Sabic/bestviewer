@@ -2,11 +2,13 @@ export {
   AnnotationUid,
   ImageId,
   RenderingEngineId,
+  SegmentationId,
   SeriesInstanceUid,
   SopInstanceUid,
   StudyInstanceUid,
   ToolGroupId,
   ViewportId,
+  VolumeId,
   type Brand
 } from "./brand";
 export {
@@ -32,6 +34,7 @@ export {
 } from "./local-file";
 export {
   decodeFrameMask,
+  encodeMaskRle,
   runSegmentation,
   segmentationRequestSchema,
   segmentationResponseSchema,
@@ -44,6 +47,26 @@ export {
   type SegmentationResult
 } from "./segmentation";
 export {
+  createStackLabelmap,
+  readFrameLabelmap,
+  removeLabelmap,
+  setActiveSegment,
+  setLabelmapOpacity,
+  setLabelmapVisibility,
+  setSegmentColor,
+  setSegmentVisibility,
+  writeFrameMask,
+  type CreateStackLabelmapInput,
+  type FrameLabelmap,
+  type LabelmapError,
+  type WriteFrameMaskInput
+} from "./segmentation-labelmap";
+export {
+  canvasCornersToImageBox,
+  canvasToImagePoint,
+  type ImagePoint
+} from "./segmentation-prompts";
+export {
   createStackViewport,
   type LoadStackOptions,
   type StackFrameState,
@@ -51,6 +74,13 @@ export {
   type StackViewportInput,
   type ViewportError
 } from "./stack-viewport";
+export {
+  createMprViewports,
+  type CreateMprInput,
+  type MprController,
+  type MprViewportElements,
+  type VolumeError
+} from "./volume-viewport";
 export {
   CT_WINDOW_LEVEL_PRESETS,
   toVoiRange,

@@ -9,3 +9,14 @@ next-env.d.ts
 .env.local
 .env.*.local
 npm-debug.log*
+
+# Python service: virtualenvs, model weights, caches (multi-GB, never commit)
+**/.venv*/
+services/**/weights/
+services/vlm/models/
+services/nninteractive_svc/model/
+**/__pycache__/
+*.pyc
+
+# e2e/browser-automation generated screenshots
+scripts/*.png

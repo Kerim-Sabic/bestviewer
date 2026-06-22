@@ -237,4 +237,32 @@ export function decodeFrameMask(frame: FrameMaskWire): DecodedFrameMask {
   };
 }
 
+/**
+ * Encode a flat 0/1 mask as row-major run lengths that START with a background
+ * (0) run — the same scheme {@link decodeFrameMask} consumes. If the first pixel
+ * is foreground, a leading zero-length background run is emitted so the
+ * alternation invariant holds. Used to serialize a (clinician-edited) labelmap
+ * frame for DICOM SEG export.
+ */
+export function encodeMaskRle(mask: Uint8Array): number[] {
+  const runs: number[] = [];
+  let current = 0; // RLE starts with a background run
+  let count = 0;
+
+  for (let index = 0; index < mask.length; index += 1) {
+    const value = mask[index] === 1 ? 1 : 0;
+
+    if (value === current) {
+      count += 1;
+    } else {
+      runs.push(count);
+      current = value;
+      count = 1;
+    }
+  }
+
+  runs.push(count);
+  return runs;
+}
+
 export type { SegmentationResponseWire };

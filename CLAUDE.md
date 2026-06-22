@@ -48,10 +48,28 @@ general craft. They compose.
 
 - **Done:** Phase 1 (render from Orthanc) · Phase 2 (Length/Probe/ROI/
   Bidirectional/Angle tools, measurement panel, hotkeys, window/level presets,
-  cine) · local DICOM upload (in-browser) · UI overhaul · AI segmentation seam
-  (contract + client + GPU service scaffold).
-- **Next:** segmentation labelmap writing + prompt UI (point/box, propagation,
-  provenance) · STOW-RS upload to Orthanc · volume/MPR · VLM report panel.
+  cine) · local DICOM upload (in-browser) · UI overhaul · STOW-RS upload.
+- **Phase 3 (AI + MPR), verified end-to-end in-browser:** promptable AI
+  **segmentation + temporal tracking** — point/box prompts in image space,
+  viewport-centric labelmap rendering, multi-label, opacity/visibility, live
+  mode, provenance. Real on-prem GPU service serving a **3-model menu**:
+  **MedSAM2 + SAM2.1** (`services/segmentation/`, SAM2 video propagation) and
+  **nnInteractive** (`services/nninteractive_svc/`, separate venv, proxied) —
+  all on Blackwell (torch cu128). **DICOM SEG export** → Orthanc (highdicom).
+  **Volume/MPR** (axial/coronal/sagittal, verified on a CT phantom). **VLM
+  report** wired to a local OpenAI-compatible server (`services/vlm/`); drafts
+  language over existing numbers only — never a mask (SaMD).
+- **Run:** segmentation service `uvicorn app:app --port 8000`; nnInteractive
+  `uvicorn app:app --port 8002` (+ `NNINTERACTIVE_SERVICE_URL` on the main
+  service); VLM `python -m llama_cpp.server --port 8001`. See each service's
+  README / requirements header. `.env.local` sets `SEGMENTATION_SERVICE_URL`
+  and `REPORT_PROVIDER`.
+- **Verify in-browser:** `node scripts/e2e-verify.mjs` (click→mask),
+  `node scripts/e2e-mpr.mjs` (MPR). `scripts/make_ct_phantom.py` seeds a
+  synthetic CT volume for MPR.
+- **Next (echo-focused):** auto-EF from LV propagation · cardiac measurement
+  pack (Simpson's, strain) · multi-cycle/A4C-A2C hanging protocols ·
+  swap MedGemma in for the report model.
 
 ## Verify
 

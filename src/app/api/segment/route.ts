@@ -9,9 +9,15 @@ const SERVICE_NOT_CONFIGURED_MESSAGE =
   "Segmentation service is not configured. Set SEGMENTATION_SERVICE_URL " +
   "to your on-prem GPU inference service (see services/segmentation).";
 
-const ReadyResponseSchema = z.object({
-  modelId: z.string().min(1),
-  ready: z.boolean()
+const ModelsResponseSchema = z.object({
+  models: z.array(
+    z.object({
+      id: z.string().min(1),
+      label: z.string().min(1),
+      version: z.string().nullable().optional(),
+      ready: z.boolean()
+    })
+  )
 });
 
 /**
@@ -19,7 +25,8 @@ const ReadyResponseSchema = z.object({
  * (keeps the service URL server-side, avoids CORS, lets pixels stay on the
  * hospital network). When no service is configured we return a typed 503 rather
  * than ever fabricating a mask — clinical output must come from a validated
- * model, not from here.
+ * model, not from here. The GET surfaces the full model menu (one entry per
+ * loaded backend) so the UI can offer model selection.
  */
 export async function GET(): Promise<Response> {
   if (!SERVICE_URL) {
@@ -35,18 +42,18 @@ export async function GET(): Promise<Response> {
   }
 
   try {
-    const upstream = await fetch(`${trimServiceUrl(SERVICE_URL)}/ready`, {
+    const upstream = await fetch(`${trimServiceUrl(SERVICE_URL)}/models`, {
       cache: "no-store",
       headers: { accept: "application/json" }
     });
 
     const payload = await upstream.json();
-    const parsed = ReadyResponseSchema.safeParse(payload);
+    const parsed = ModelsResponseSchema.safeParse(payload);
 
     if (!parsed.success) {
       return Response.json(
         {
-          message: "Segmentation service readiness response was invalid.",
+          message: "Segmentation service model response was invalid.",
           models: [],
           reason: "not_ready",
           status: "unavailable"
@@ -55,10 +62,19 @@ export async function GET(): Promise<Response> {
       );
     }
 
-    if (!upstream.ok || !parsed.data.ready) {
+    const readyModels = parsed.data.models
+      .filter((model) => model.ready)
+      .map((model) => ({
+        id: model.id,
+        label: model.label,
+        version: model.version ?? null
+      }));
+
+    if (!upstream.ok || readyModels.length === 0) {
       return Response.json(
         {
-          message: `Segmentation service is not ready for inference (model: ${parsed.data.modelId}).`,
+          message:
+            "Segmentation service is reachable but no model is loaded on the GPU yet.",
           models: [],
           reason: "not_ready",
           status: "unavailable"
@@ -68,14 +84,8 @@ export async function GET(): Promise<Response> {
     }
 
     return Response.json({
-      message: "Segmentation service is ready.",
-      models: [
-        {
-          id: parsed.data.modelId,
-          label: parsed.data.modelId,
-          version: null
-        }
-      ],
+      message: `Segmentation service ready — ${readyModels.length} model(s) loaded.`,
+      models: readyModels,
       status: "ready"
     } satisfies SegmentationServiceStatus);
   } catch (error) {

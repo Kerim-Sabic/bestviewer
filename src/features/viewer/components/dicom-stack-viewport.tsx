@@ -4,7 +4,9 @@ import type { StackFrameState, StackViewportController } from "@horalix/dicom-en
 import { AlertTriangle, Layers, Monitor } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+import { AiSegmentationOverlay } from "./ai-segmentation-overlay";
 import { CineControlStrip } from "./cine-control-strip";
+import type { PendingPrompt, PromptMode } from "../lib/ai-segmentation";
 import type {
   CineMode,
   CinePlaybackState,
@@ -14,7 +16,14 @@ import type {
 } from "../types";
 
 interface DicomStackViewportProps {
+  readonly aiPromptMode?: PromptMode;
+  readonly aiPendingPrompts?: readonly PendingPrompt[];
   readonly loadStatus: LoadStatus;
+  readonly onAiAddBox?: (
+    start: [number, number],
+    end: [number, number]
+  ) => void;
+  readonly onAiAddPoint?: (canvasPoint: [number, number]) => void;
   readonly onControllerReady?: (controller: StackViewportController | null) => void;
   readonly onFrameStateChange?: (state: StackFrameState) => void;
   readonly series: LoadedSeries | null;
@@ -34,7 +43,11 @@ type FrameNavigationResult = Awaited<
 >;
 
 export function DicomStackViewport({
+  aiPromptMode = "off",
+  aiPendingPrompts,
   loadStatus,
+  onAiAddBox,
+  onAiAddPoint,
   onControllerReady,
   onFrameStateChange,
   series,
@@ -315,6 +328,14 @@ export function DicomStackViewport({
 
       <div className="cornerstone-frame">
         <div ref={elementRef} className="cornerstone-element" />
+        {series && onAiAddPoint && onAiAddBox ? (
+          <AiSegmentationOverlay
+            promptMode={aiPromptMode}
+            pendingPrompts={aiPendingPrompts ?? []}
+            onAddPoint={onAiAddPoint}
+            onAddBox={onAiAddBox}
+          />
+        ) : null}
         {!series ? (
           <div className="viewport-empty">
             <span className="viewport-empty-mark" aria-hidden="true">
