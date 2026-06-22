@@ -115,7 +115,10 @@ export function useAiSegmentation(
     { index: 1, label: "Segment 1", color: colorForSegment(1), visible: true }
   ]);
   const [activeSegmentIndex, setActiveSegmentIndex] = useState(1);
-  const [propagate, setPropagate] = useState(false);
+  // Default ON: one prompt should segment the whole cine and move with playback
+  // (temporal tracking) — the echo-default. The service no-ops it for single
+  // frames, so it is safe to leave enabled everywhere.
+  const [propagate, setPropagate] = useState(true);
   const [liveMode, setLiveMode] = useState(false);
   const [opacity, setOpacityState] = useState(45);
   const [runState, setRunState] = useState<AiRunState>({ status: "idle" });

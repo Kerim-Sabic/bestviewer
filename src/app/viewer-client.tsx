@@ -10,6 +10,10 @@ const ReadingRoomShell = dynamic(
   { ssr: false }
 );
 
-export function ViewerClient() {
-  return <ReadingRoomShell />;
+export function ViewerClient({
+  studyInstanceUid
+}: {
+  readonly studyInstanceUid: string;
+}) {
+  return <ReadingRoomShell studyInstanceUid={studyInstanceUid} />;
 }

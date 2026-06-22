@@ -20,15 +20,10 @@ page.on("console", (m) => {
 });
 
 try {
-  await page.goto(BASE, { waitUntil: "domcontentloaded" });
+  await page.goto(`${BASE}/viewer/${encodeURIComponent(STUDY)}`, {
+    waitUntil: "domcontentloaded"
+  });
   await page.waitForSelector(".reading-room", { timeout: 30000 });
-
-  // Load the series via the manual UID form (deterministic).
-  await page.getByText("Manual UID load").click();
-  await page.getByLabel("Study Instance UID").fill(STUDY);
-  await page.getByLabel("Series Instance UID").fill(SERIES);
-  await page.getByRole("button", { name: "Load Series" }).click();
-
   await page.waitForSelector(".cornerstone-element canvas", { timeout: 30000 });
   await page.waitForTimeout(1800); // let the first frame paint
 

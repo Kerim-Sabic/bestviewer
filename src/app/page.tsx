@@ -1,5 +1,5 @@
-import { ViewerClient } from "./viewer-client";
+import { HomeView } from "@/features/viewer/components/home-view";
 
 export default function Home() {
-  return <ViewerClient />;
+  return <HomeView />;
 }

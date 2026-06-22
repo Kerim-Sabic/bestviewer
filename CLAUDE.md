@@ -27,6 +27,15 @@ general craft. They compose.
    AI-generated, clinician-editable, never presented as a diagnosis. Do not
    alter displayed pixel values with UI chrome.
 
+## Routing
+
+- `/` — **home**: upload a study (STOW to Orthanc) or pick a previously uploaded
+  one (`home-view.tsx`); each card links to the viewer.
+- `/viewer/[study]` — the reading room **scoped to one study**: a left **cine
+  rail** (all loadable series; switch between loops) + the viewport + tools. AI
+  segmentation is always scoped to the one active cine; propagation is on by
+  default so a single prompt tracks the whole loop and moves with cine playback.
+
 ## Architecture
 
 - `packages/dicom-engine/` — the headless, typed engine (source of truth).
